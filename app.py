@@ -259,7 +259,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
                 if not is_en:
                     over_hedge = metrics.get('over_hedging', {})
                     hedge_count = over_hedge.get('count', 0)
-                    if hedge_count >= 3:
+                    if hedge_count >= 2:
                         hedge_items = over_hedge.get('items', [])
                         hedge_examples = "、".join([f'"{h[0]}"' for h in hedge_items[:5]])
                         feedback_points.append(f'4. 【严重AI痕迹】过度使用对冲词/含糊表达（检测到 {hedge_count} 个，如{hedge_examples}）。这是AI改写文本的头号特征——AI为了模仿"学术谨慎"会堆砌"似乎"、"可能表明"、"在一定程度上"等词，但人类学者不会这样写。请将这些过度对冲词替换为更直接、确定的表述。如需表达不确定性，使用"有待验证"、"尚需探讨"等真正的人类学术表达。')
@@ -281,7 +281,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
 
                     # 新增：成语滥用反馈
                     idiom_obj = metrics.get('idiom_overuse', {})
-                    if idiom_obj.get('count', 0) >= 4:
+                    if idiom_obj.get('count', 0) >= 3:
                         feedback_points.append(f"8. 机器指纹暴露：成语/四字词组堆砌过多（检测到 {idiom_obj.get('count', 0)} 个）。AI生成中文时特别喜欢堆砌成语，人类使用更克制。请将多余的成语替换为平实表述。")
 
                     # 新增：标点密度反馈
@@ -291,7 +291,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
 
                     # 新增：段末总结套话反馈
                     concluding_obj = metrics.get('concluding_formula', {})
-                    if concluding_obj.get('count', 0) >= 3:
+                    if concluding_obj.get('count', 0) >= 2:
                         feedback_points.append(f'10. 机器指纹暴露：段末总结套话过多（检测到 {concluding_obj.get("count", 0)} 处，如"总体来看"、"综上所述"等）。请将这些总结性套话替换为内容的自然收束，但保留套话中包含的实质信息。')
 
             if not feedback_points:

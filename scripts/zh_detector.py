@@ -66,7 +66,7 @@ def analyze_chinese_text(text):
         "items": transition_found[:10],
         "details": f"检测到 {transition_count} 个机器常滥用的过渡词"
     }
-    score += min(transition_count * 8, 30)
+    score += min(transition_count * 10, 35)
 
     # ============================================================
     # 3. 空泛套话/大词/卖弄词 (Abstract Language) — 极大扩容
@@ -80,7 +80,12 @@ def analyze_chinese_text(text):
         "具有一定的局限性", "全面阐述", "系统梳理", "深入分析",
         "这不难理解", "随着社会的不断发展", "在当前背景下",
         "有着广泛的应用", "为...指明了方向",
-        "良好平衡", "某种平衡",
+        "旨在", "有效解决了",
+        "良好平衡", "某种平衡", "取得了平衡", "取得了...的平衡",
+        "技术方案", "技术路径",
+        "核心痛点", "核心挑战",
+        "智能化", "自动化", "数字化", "信息化",
+        "高效", "优异", "卓越",
         "强有力的", "强有力的支撑", "坚实的基础",
         "深远意义", "重要价值", "现实意义", "理论意义",
         "取得了良好的效果", "取得了显著的效果",
@@ -104,7 +109,7 @@ def analyze_chinese_text(text):
         "items": abstract_found[:15],
         "details": f"检测到 {abstract_count} 个空泛套话/大词短语"
     }
-    score += min(abstract_count * 6, 30)
+    score += min(abstract_count * 8, 35)
 
     # ============================================================
     # 4. AI过度对冲词检测 (Over-Hedging) — 关键修正
@@ -131,16 +136,16 @@ def analyze_chinese_text(text):
             hedge_count += cnt
             hedge_found.append((p, cnt))
 
-    if hedge_count >= 5:
-        over_hedge_penalty = min((hedge_count - 4) * 8, 25)
+    if hedge_count >= 4:
+        over_hedge_penalty = min((hedge_count - 3) * 8, 25)
         score += over_hedge_penalty
         details['metrics']['over_hedging'] = {
             "count": hedge_count,
             "items": hedge_found[:10],
             "details": f"AI过度对冲词堆砌 (检测到 {hedge_count} 个，如'似乎'、'可能表明'等，这是AI模仿学术写作的典型痕迹，惩罚 +{over_hedge_penalty})"
         }
-    elif hedge_count >= 3:
-        over_hedge_penalty = min((hedge_count - 2) * 4, 10)
+    elif hedge_count >= 2:
+        over_hedge_penalty = min((hedge_count - 1) * 4, 10)
         score += over_hedge_penalty
         details['metrics']['over_hedging'] = {
             "count": hedge_count,
@@ -231,8 +236,8 @@ def analyze_chinese_text(text):
             idiom_count += cnt
             idiom_found.append((idiom, cnt))
 
-    if idiom_count >= 4:
-        penalty = min((idiom_count - 3) * 4, 15)
+    if idiom_count >= 3:
+        penalty = min((idiom_count - 2) * 5, 18)
         score += penalty
         details['metrics']['idiom_overuse'] = {
             "count": idiom_count,
@@ -370,8 +375,8 @@ def analyze_chinese_text(text):
             concluding_count += cnt
             concluding_found.append((p, cnt))
 
-    if concluding_count >= 3:
-        penalty = min((concluding_count - 2) * 5, 15)
+    if concluding_count >= 2:
+        penalty = min(concluding_count * 5, 18)
         score += penalty
         details['metrics']['concluding_formula'] = {
             "count": concluding_count,
