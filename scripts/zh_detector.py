@@ -66,30 +66,23 @@ def analyze_chinese_text(text):
         "items": transition_found[:10],
         "details": f"检测到 {transition_count} 个机器常滥用的过渡词"
     }
-    score += min(transition_count * 12, 40)
+    score += min(transition_count * 8, 30)
 
     # ============================================================
     # 3. 空泛套话/大词/卖弄词 (Abstract Language) — 极大扩容
     # ============================================================
     abstract_zh = [
         "多种因素", "各个方面", "深远的影响", "发挥着至关重要的作用",
-        "扮演着重要的角色", "不可忽视", "具有重要意义", "不可剥夺",
-        "毫无疑问", "深刻揭示了", "不可或缺", "综合运用",
+        "扮演着重要的角色", "不可忽视", "具有重要意义",
+        "毫无疑问", "深刻揭示了", "综合运用",
         "提供了理论支撑", "为后续研究提供基础", "完善了理论体系",
-        "开启了新篇章", "此案例印证了", "验证了可行性", "深入探讨",
+        "开启了新篇章", "此案例印证了", "深入探讨",
         "具有一定的局限性", "全面阐述", "系统梳理", "深入分析",
         "这不难理解", "随着社会的不断发展", "在当前背景下",
         "有着广泛的应用", "为...指明了方向",
-        "旨在", "有效解决了", "实现了", "提供了",
-        "构建了", "提出了", "确立了", "展现了",
-        "良好平衡", "某种平衡", "技术方案", "技术路径",
-        "核心痛点", "关键问题", "核心挑战", "关键挑战",
-        "智能化", "自动化", "数字化", "信息化",
-        "高效", "优异", "显著", "卓越",
+        "良好平衡", "某种平衡",
         "强有力的", "强有力的支撑", "坚实的基础",
-        "在一定程度上", "在某种程度上",
         "深远意义", "重要价值", "现实意义", "理论意义",
-        "为...提供了", "对...进行了", "将...应用于",
         "取得了良好的效果", "取得了显著的效果",
         "表现出色", "表现优异", "效果显著",
         "具有较强的", "具有较高的", "具有良好的",
@@ -111,7 +104,7 @@ def analyze_chinese_text(text):
         "items": abstract_found[:15],
         "details": f"检测到 {abstract_count} 个空泛套话/大词短语"
     }
-    score += min(abstract_count * 10, 40)
+    score += min(abstract_count * 6, 30)
 
     # ============================================================
     # 4. AI过度对冲词检测 (Over-Hedging) — 关键修正
@@ -138,13 +131,21 @@ def analyze_chinese_text(text):
             hedge_count += cnt
             hedge_found.append((p, cnt))
 
-    if hedge_count >= 3:
-        over_hedge_penalty = min((hedge_count - 2) * 10, 30)
+    if hedge_count >= 5:
+        over_hedge_penalty = min((hedge_count - 4) * 8, 25)
         score += over_hedge_penalty
         details['metrics']['over_hedging'] = {
             "count": hedge_count,
             "items": hedge_found[:10],
             "details": f"AI过度对冲词堆砌 (检测到 {hedge_count} 个，如'似乎'、'可能表明'等，这是AI模仿学术写作的典型痕迹，惩罚 +{over_hedge_penalty})"
+        }
+    elif hedge_count >= 3:
+        over_hedge_penalty = min((hedge_count - 2) * 4, 10)
+        score += over_hedge_penalty
+        details['metrics']['over_hedging'] = {
+            "count": hedge_count,
+            "items": hedge_found[:10],
+            "details": f"存在较多对冲词 ({hedge_count} 个)，可能偏AI化，轻微惩罚 +{over_hedge_penalty}"
         }
     elif hedge_count >= 1:
         details['metrics']['over_hedging'] = {
@@ -230,8 +231,8 @@ def analyze_chinese_text(text):
             idiom_count += cnt
             idiom_found.append((idiom, cnt))
 
-    if idiom_count >= 3:
-        penalty = min((idiom_count - 2) * 5, 20)
+    if idiom_count >= 4:
+        penalty = min((idiom_count - 3) * 4, 15)
         score += penalty
         details['metrics']['idiom_overuse'] = {
             "count": idiom_count,
@@ -369,8 +370,8 @@ def analyze_chinese_text(text):
             concluding_count += cnt
             concluding_found.append((p, cnt))
 
-    if concluding_count >= 2:
-        penalty = min(concluding_count * 6, 20)
+    if concluding_count >= 3:
+        penalty = min((concluding_count - 2) * 5, 15)
         score += penalty
         details['metrics']['concluding_formula'] = {
             "count": concluding_count,
