@@ -87,7 +87,7 @@ def format_formulas(text, target_format):
             
     return text
 
-def process_pipeline(text, lang, target_format, discipline, api_base, api_key, model_id):
+def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_key, model_id):
     client = openai.OpenAI(api_key=api_key, base_url=api_base)
     
     # 领域特定的补充约束
@@ -116,8 +116,28 @@ def process_pipeline(text, lang, target_format, discipline, api_base, api_key, m
     extra_rule_en = discipline_rules_en.get(discipline, "")
     extra_rule_zh = discipline_rules_zh.get(discipline, "")
     
+    # 语气特定的补充约束
+    tone_rules_en = {
+        "学术书面 (Formal Academic)": "[Tone Directive]: Strictly formal academic writing. Use rigorous written scholarly language. ABSOLUTELY NO colloquialisms or informal phrasing (e.g., avoid 'looks like', 'kind of'). Maintain maximum professional depth.",
+        "学术演讲 (Academic Presentation)": "[Tone Directive]: Academic presentation/conference style. Maintain scholarly rigor and terminology but use slightly shorter, speakable sentences. Phrases like 'We found that' or 'This implies' are acceptable for rhetorical flow.",
+        "一般书面 (General Written)": "[Tone Directive]: General written/technical blog style. Remove overly dense academic jargon. Write cleanly and accessibly for a general educated audience without overusing nominalizations.",
+        "口语化 (Colloquial)": "[Tone Directive]: Highly conversational and colloquial style. Use casual, everyday language. Feel free to use phrases like 'pretty much', 'looks like', or conversational analogies to completely break the rigid academic tone."
+    }
+    
+    tone_rules_zh = {
+        "学术书面 (Formal Academic)": "【风格指令】：纯正客观的学术书面书写。使用高度严谨的书面语，【绝对禁止】将学术文本口语化。请务必保持学术严谨性，绝不使用“算是”、“似乎”、“看上去不错”等非正式或口语化表达，确保原有的专业深度。",
+        "学术演讲 (Academic Presentation)": "【风格指令】：学术汇报/答辩演讲口吻。语言依然专业且保留核心术语，但句式长短更适宜讲述。允许出现“我们发现”、“这说明”、“值得注意的是”等更具现场感的用语，避免过长的套娃式从句。",
+        "一般书面 (General Written)": "【风格指令】：标准的书面/科普表达。去除晦涩难懂的学术词语与大词，面向一般受众解答，语句通顺流畅，不过度堆砌名词，偏向技术博客或新闻报道的流畅质感。",
+        "口语化 (Colloquial)": "【风格指令】：高度口语化与对话式的交流表达。使用通俗易懂的大白话、非正式用语，可以加入一些日常感情色彩词（如“算是”、“其实”、“看上去不错”），完全打破学术的严肃与刻板。"
+    }
+    
+    extra_tone_en = tone_rules_en.get(tone, "")
+    extra_tone_zh = tone_rules_zh.get(tone, "")
+    
     prompt_en = f"""You are an expert editor who humanizes academic writing, specifically in the field of {discipline}.
-    Your goal is to transform the provided AI-generated text into authentic human scholarly writing.
+    Your goal is to transform the provided AI-generated text into authentic human writing according to the specified tone.
+    
+    {extra_tone_en}
     
     Domain-Specific Constraints for {discipline}:
     {extra_rule_en}
@@ -134,24 +154,24 @@ def process_pipeline(text, lang, target_format, discipline, api_base, api_key, m
     - Output ONLY the rewritten text, with no explanations or rationale block.
     """
     
-    prompt_zh = f"""你是一位专门为{discipline}领域学术论文润色的资深人类编辑。
-    你的核心任务是去除文本中浮夸、空洞、机械的AI生成痕迹，将其转化为流畅、专业且高度符合学术规范的书面语。
-    【绝对禁止】将学术文本口语化。请务必保持学术严谨性，不要使用“算是”、“基本保持住了”、“看上去不错”、“似乎”等非正式或口语化表达。
+    prompt_zh = f"""你是一位专门为{discipline}领域润色的资深人类编辑。
+    你的核心任务是去除文本中浮夸、空洞、机械的AI生成痕迹，将其转化为符合指定风格要求的人类真实表述。
+    
+    {extra_tone_zh}
 
     {discipline} 领域的专属写作约束：
     {extra_rule_zh}
 
     请应用以下核心策略：
-    1. 保留学术性与专业度：必须使用严谨的学术书面语，绝不能丧失原有的专业深度。保留核心论证逻辑与案例事实，润色后字数原则上不要剧烈缩水。
+    1. 遵循风格与专业度：在满足【风格指令】的前提下，保留核心论证逻辑与案例事实，润色后字数原则上不要剧烈缩水。
     2. 增加句式错落感（Burstiness）：打破平均15-20字的均匀句式，交叉使用长短句，以及倒装、定语前置等符合人类习惯的复杂句型，刻意消除文本的高度对称排比。
-    3. 提纯词汇（降维）：删除AI高频的伪高级大词（如“具有深远意义”、“不可忽视”、“各个方面”等），替换为具体的学术客观表述。避免浮夸的辞藻，做到客观平实。
+    3. 提纯词汇（降维）：删除AI高频的伪高级大词（如“具有深远意义”、“不可忽视”、“各个方面”等），替换为具体客观的表述。避免浮夸的辞藻。
     4. 消除机械答题模式：极力避免编号逻辑结构（如“首先、其次、综上所述”），不要在段末附加多余的总结套话，通过内容的内在逻辑来衔接段落结构。
     5. 移除机器排版风格：如果是普通自然段落，坚决禁止将文字改写成频繁使用加粗短语起手的垂直列表（禁止使用如“**一、核心问题：**”格式）。
-    6. 适度使用学术客观语气：在表示推论时合理且严谨地使用学术表述（如“研究结果表明”、“在一定程度上证明了”），展示批判性思考，但必须符合标准规范的学术书面语，不能显得轻率。
-    7. 原样保留所有的LaTeX公式，绝对不要擅自更改数学符号或排版结构。
+    6. 原样保留所有的LaTeX公式，绝对不要擅自更改数学符号或排版结构。
 
     格式要求：
-    - 不要解释，禁止输出排版花样，直接输出纯净还原为自然连贯的学术段落文本。
+    - 不要解释，禁止输出排版花样，直接输出纯净还原为自然连贯的段落文本。
     """
     
     system_prompt = prompt_en if lang == "English" else prompt_zh
@@ -271,6 +291,10 @@ with st.sidebar:
     st.header("📝 Options")
     lang_opt = st.radio("Language", ["中文 (Chinese)", "English"])
     format_opt = st.radio("Target Format", ["LaTeX", "Word (Separated Formulas)"])
+    tone_opt = st.selectbox(
+        "输出风格 (Output Tone)",
+        ["学术书面 (Formal Academic)", "学术演讲 (Academic Presentation)", "一般书面 (General Written)", "口语化 (Colloquial)"]
+    )
     discipline_opt = st.selectbox(
         "Discipline",
         ["Computer Science", "Engineering", "Economics/Business", "Sociology", "Anthropology", "Political Science", "Education", "Psychology"]
@@ -302,7 +326,7 @@ if st.button("🚀 运行 Humanize Pipeline"):
 
         with st.spinner("Pipeline 运行中..."):
             final_text, final_score = process_pipeline(
-                input_text, lang_param, format_opt, discipline_opt, api_base, api_key, model_id
+                input_text, lang_param, format_opt, discipline_opt, tone_opt, api_base, api_key, model_id
             )
             
         st.subheader("✅ 输出结果")
