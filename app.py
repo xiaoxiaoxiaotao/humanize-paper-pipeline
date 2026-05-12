@@ -136,8 +136,37 @@ def format_formulas(text, target_format):
 def process_pipeline(text, lang, target_format, discipline, api_base, api_key, model_id):
     client = openai.OpenAI(api_key=api_key, base_url=api_base)
     
+    # 领域特定的补充约束
+    discipline_rules_en = {
+        "Computer Science": "Emphasize technical precision, algorithmic logic, and system architecture. Do not over-embellish technical descriptions. It is acceptable and normal to use passive voice or straightforward active voice (e.g., 'We propose') when describing systems and methodologies.",
+        "Engineering": "Focus on practical applications, design constraints, performance metrics, and methodology. Keep the tone highly objective and data-driven.",
+        "Economics/Business": "Focus on empirical evidence, causal inference, and economic models. Use standard business or econometric terminology concisely.",
+        "Sociology": "Use concepts like stratification, agency, and institutions. Qualitative descriptions should sound reflexive, while quantitative sections should be objective.",
+        "Anthropology": "Values ethnographic detail, 'thick description', and reflexive voice. Subjective and descriptive language is more acceptable here.",
+        "Political Science": "Emphasize institutional frameworks, power dynamics, and hypothesis testing.",
+        "Education": "Focus on pedagogy, learning outcomes, and equity. Policy relevance is often highlighted.",
+        "Psychology": "Use precise operational definitions and behavioral mechanisms. Experimental design descriptions should be rigid but natural."
+    }
+    
+    discipline_rules_zh = {
+        "Computer Science": "强调技术精确性、算法逻辑和系统架构。不要对技术过程进行过度修饰。在描述系统和方法时，使用平实的陈述句或第一人称（如“本文提出”）是完全可以接受的。",
+        "Engineering": "侧重于实际应用、设计约束、性能指标和方法论。保持极其客观、数据驱动的语气。",
+        "Economics/Business": "侧重于实证证据、因果推断和经济模型。简洁地使用标准的计量经济学或商业术语。",
+        "Sociology": "熟练使用资本、阶层、制度等社会学概念。定性描述应体现反思性，定量部分则保持客观。",
+        "Anthropology": "看重民族志细节、“深描”和反思性语态。在这里，主观和描述性的语言更加被接受。",
+        "Political Science": "强调制度框架、权力动态和假设检验语言。",
+        "Education": "关注教学法、学习结果和教育公平。突出政策相关性。",
+        "Psychology": "必须使用精确的操作性定义和行为机制术语。实验设计的描述应当严谨自然。"
+    }
+    
+    extra_rule_en = discipline_rules_en.get(discipline, "")
+    extra_rule_zh = discipline_rules_zh.get(discipline, "")
+    
     prompt_en = f"""You are an expert editor who humanizes academic writing, specifically in the field of {discipline}.
     Your goal is to transform the provided AI-generated text into authentic human scholarly writing.
+    
+    Domain-Specific Constraints for {discipline}:
+    {extra_rule_en}
     
     Apply the following core strategies:
     1. Vary Sentence Rhythm (Burstiness): Mix short punchy sentences (5-10 words) with medium (15-20) and long complex ones (25-35+). Break up uniform sentence lengths.
@@ -153,6 +182,9 @@ def process_pipeline(text, lang, target_format, discipline, api_base, api_key, m
     
     prompt_zh = f"""你是一位专门为{discipline}领域学术论文润色的资深人类编辑。
     你的核心任务是去除文本中浮夸、空洞、喜欢卖弄的AI学术腔调，将其转化为朴实、严谨、真诚且干脆的真实学者写作风格。
+
+    {discipline} 领域的专属写作约束：
+    {extra_rule_zh}
 
     请应用以下核心策略：
     1. 保量润色：保留核心论证逻辑与案例事实，以替换句式、换词、移位为主。润色后字数原则上不要剧烈缩水。
