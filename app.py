@@ -378,9 +378,26 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
     system_prompt = (prompt_en if lang == "English" else prompt_zh) + config["prompt_suffix"]
     
     st.info("Pipeline Step 1: 请求初始润色改写...")
+
+    def call_api_with_retry(messages, temperature, frequency_penalty, presence_penalty, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                resp = client.chat.completions.create(
+                    model=model_id,
+                    messages=messages,
+                    temperature=temperature,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty
+                )
+                return resp.choices[0].message.content
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    st.warning(f"API调用失败（第{attempt + 1}次），正在重试... 错误: {str(e)[:80]}")
+                else:
+                    raise e
+
     try:
-        response = client.chat.completions.create(
-            model=model_id,
+        revised = call_api_with_retry(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
@@ -389,7 +406,6 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
             frequency_penalty=config["init_freq_penalty"],
             presence_penalty=config["init_pres_penalty"]
         )
-        revised = response.choices[0].message.content
 
         MAX_REFINE_ROUNDS = config["max_rounds"]
         TARGET_SCORE = config["target_score"]
@@ -447,8 +463,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
                              if is_en else
                              '上一次的改写依然残留机器生成的生硬感。系统检测程序发现了以下机器味缺陷：\n\n' + feedback_str + '\n\n请基于上述缺陷逐一自纠并重新输出。核心原则：写得像人，不是写得像"试图模仿人的AI"。将过度对冲词（如"似乎"、"可能表明"、"在一定程度上"）替换为更直接确定的表述，将总结套话（如"总体来看"、"综上所述"）替换为内容自然收束，将空泛大词替换为具体朴实的表述。注意是"替换"而非"删除"——每一条被修改的表述都必须保留其原有的实质信息。不得遗漏原文中的任何论点、实验结果或结论。')
 
-            response = client.chat.completions.create(
-                model=model_id,
+            revised = call_api_with_retry(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": text},
@@ -459,7 +474,6 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
                 frequency_penalty=config["refine_freq_penalty"],
                 presence_penalty=config["refine_pres_penalty"]
             )
-            revised = response.choices[0].message.content
         else:
             ai_score, ai_details = calculate_ai_rate(revised, lang)
             if ai_score < best_score:
