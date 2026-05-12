@@ -89,14 +89,14 @@ def format_formulas(text, target_format):
 
 STRATEGY_CONFIG = {
     "激进": {
-        "max_rounds": 6,
+        "max_rounds": 4,
         "target_score": 25,
         "init_temperature": 0.85,
         "init_freq_penalty": 0.5,
         "init_pres_penalty": 0.4,
-        "refine_temperature": 0.95,
-        "refine_freq_penalty": 0.4,
-        "refine_pres_penalty": 0.3,
+        "refine_temperature": 0.90,
+        "refine_freq_penalty": 0.35,
+        "refine_pres_penalty": 0.25,
         "thresholds": {
             "uniformity_score": 0.2,
             "transition_count": 0,
@@ -112,10 +112,10 @@ STRATEGY_CONFIG = {
             "de_density": 0.05,
             "symmetry_count": 2,
         },
-        "prompt_suffix": "\n\n【激进改写模式】：请进行大幅度的改写，不惜改变较多表达方式，务必将AI痕迹降到最低。可以较大幅度地调整句式结构和用词，只要保留核心事实信息即可。",
+        "prompt_suffix": "\n\n【激进改写模式】：请在保留核心事实信息的前提下，尽可能彻底地消除AI生成痕迹。可以较大幅度地调整句式结构和用词，但不要删减实质性内容。",
     },
     "默认": {
-        "max_rounds": 4,
+        "max_rounds": 3,
         "target_score": 35,
         "init_temperature": 0.75,
         "init_freq_penalty": 0.4,
@@ -395,6 +395,9 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
         TARGET_SCORE = config["target_score"]
         is_en = (lang == "English")
         all_failing_metrics = []
+        best_revised = revised
+        best_score = 999
+        stagnation_count = 0
 
         for round_idx in range(MAX_REFINE_ROUNDS):
             ai_score, ai_details = calculate_ai_rate(revised, lang)
@@ -402,6 +405,25 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
             st.write(f"🔬 第{round_num}轮评估的AI近似指纹分数: {ai_score}/100")
             if ai_details:
                 st.expander(f"第{round_num}轮AI评估详细指标").json(ai_details.get('metrics', {}))
+
+            if ai_score < best_score:
+                best_score = ai_score
+                best_revised = revised
+                stagnation_count = 0
+            else:
+                stagnation_count += 1
+
+            if ai_score <= 5:
+                st.warning("⚠️ AI分数过低，文本可能已被过度改写，回退到最佳版本")
+                revised = best_revised
+                ai_score = best_score
+                break
+
+            if stagnation_count >= 2:
+                st.info(f"📌 连续{stagnation_count}轮分数未改善，提前终止迭代，使用最佳版本（{best_score}/100）")
+                revised = best_revised
+                ai_score = best_score
+                break
 
             feedback_points, failing_metrics = generate_metric_feedback(
                 ai_details.get('metrics', {}) if ai_details else {}, is_en, strategy
@@ -439,6 +461,11 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
             revised = response.choices[0].message.content
         else:
             ai_score, ai_details = calculate_ai_rate(revised, lang)
+            if ai_score < best_score:
+                best_score = ai_score
+                best_revised = revised
+            revised = best_revised
+            ai_score = best_score
             st.write(f"🔬 最终评估的AI近似指纹分数: {ai_score}/100")
             if ai_details:
                 st.expander("最终AI评估详细指标").json(ai_details.get('metrics', {}))
