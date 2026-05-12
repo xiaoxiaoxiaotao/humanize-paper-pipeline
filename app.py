@@ -320,13 +320,29 @@ if st.button("🚀 运行 Humanize Pipeline"):
     elif not input_text.strip():
         st.error("请输入需要处理的文本")
     else:
+        lang_param = "English" if lang_opt == "English" else "Chinese"
+        
+        st.subheader("📊 原始文本分析")
+        orig_score, orig_details = calculate_ai_rate(input_text, lang_param)
+        
+        if orig_score > 60:
+            st.error(f"润色前原始文本AI评分: {orig_score}/100 (强AI痕迹)")
+        elif orig_score > 35:
+            st.warning(f"润色前原始文本AI评分: {orig_score}/100 (中等AI痕迹)")
+        else:
+            st.success(f"润色前原始文本AI评分: {orig_score}/100 (低AI痕迹，可能无需过度润色)")
+            
+        if orig_details:
+            st.expander("查看原始文本的AI特征详细抓取指标").json(orig_details.get('metrics', {}))
+
         with st.spinner("Pipeline 运行中..."):
-            lang_param = "English" if lang_opt == "English" else "Chinese"
             final_text, final_score = process_pipeline(
                 input_text, lang_param, format_opt, discipline_opt, api_base, api_key, model_id
             )
             
-        st.subheader("输出结果")
+        st.subheader("✅ 输出结果")
+        st.metric(label="AI分数降幅", value=f"{final_score}/100", delta=f"{final_score - orig_score} 分", delta_color="inverse")
+        
         if final_score < 35:
             st.success(f"最终AI味评分过关 ({final_score}/100)")
         elif final_score < 60:
