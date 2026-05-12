@@ -484,7 +484,8 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
         return revised, ai_score, all_failing_metrics
 
     except Exception as e:
-        return f"API调用出错: {str(e)}", 100, []
+        st.error(f"API调用出错: {str(e)}")
+        return text, -1, []
 
 st.title("🎓 Humanize Academic Paper Pipeline")
 st.markdown("基于多轮API调用和规则过滤的AI论文防查重、自然化润色工具。")
@@ -536,19 +537,36 @@ if st.button("🚀 运行 Humanize Pipeline"):
         if orig_details:
             st.expander("查看原始文本的AI特征详细抓取指标").json(orig_details.get('metrics', {}))
 
-        with st.spinner("Pipeline 运行中..."):
-            final_text, final_score, failing_metrics = process_pipeline(
-                input_text, lang_param, format_opt, discipline_opt, tone_opt, api_base, api_key, model_id, strategy_opt
-            )
-            
-        st.subheader("✅ 输出结果")
-        st.metric(label="AI分数降幅", value=f"{final_score}/100", delta=f"{final_score - orig_score} 分", delta_color="inverse")
-        
-        if final_score < 35 and not failing_metrics:
-            st.success(f"最终AI味评分过关 ({final_score}/100)，所有指标已通过")
-        elif failing_metrics:
-            st.warning(f"最终AI味评分: {final_score}/100，以下指标仍需手动调整：{', '.join(failing_metrics)}")
+        config = STRATEGY_CONFIG.get(strategy_opt, STRATEGY_CONFIG["默认"])
+        _, orig_failing = generate_metric_feedback(
+            orig_details.get('metrics', {}) if orig_details else {},
+            lang_param == "English",
+            strategy_opt
+        )
+
+        if orig_score <= config["target_score"] and not orig_failing:
+            st.success(f"✅ 原始文本AI评分已达标 ({orig_score}/100)，无需润色")
+            st.subheader("✅ 输出结果")
+            st.metric(label="AI分数", value=f"{orig_score}/100", delta="无需润色")
+            st.text_area("复制结果", input_text, height=300)
         else:
-            st.error(f"最终AI味评分偏高 ({final_score}/100)")
-            
-        st.text_area("复制结果", final_text, height=300)
+            with st.spinner("Pipeline 运行中..."):
+                final_text, final_score, failing_metrics = process_pipeline(
+                    input_text, lang_param, format_opt, discipline_opt, tone_opt, api_base, api_key, model_id, strategy_opt
+                )
+                
+            st.subheader("✅ 输出结果")
+            if final_score == -1:
+                st.error("Pipeline 运行失败，请检查API设置后重试")
+                st.text_area("原始文本（未修改）", input_text, height=300)
+            else:
+                st.metric(label="AI分数降幅", value=f"{final_score}/100", delta=f"{final_score - orig_score} 分", delta_color="inverse")
+                
+                if final_score < 35 and not failing_metrics:
+                    st.success(f"最终AI味评分过关 ({final_score}/100)，所有指标已通过")
+                elif failing_metrics:
+                    st.warning(f"最终AI味评分: {final_score}/100，以下指标仍需手动调整：{', '.join(failing_metrics)}")
+                else:
+                    st.error(f"最终AI味评分偏高 ({final_score}/100)")
+                    
+                st.text_area("复制结果", final_text, height=300)
