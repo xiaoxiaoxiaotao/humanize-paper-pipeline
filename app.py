@@ -4,6 +4,8 @@ import re
 import numpy as np
 import sys
 import os
+import math
+from collections import Counter
 
 # 引入刚刚从 skill 中提取的高级检测算法
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
@@ -89,6 +91,44 @@ def calculate_ai_rate(text, lang):
             if shi_count / text_len > 0.03: # 过多使用判断动词"是"
                 score += 10
                 details['metrics']['dense_be'] = {"details": "过多使用系动词'是'（AI喜欢用是来下定义式回答）"}
+                
+        # 3.8 市面主流检测器对齐：NLP 技术特征测算 (Technical Metrics)
+        chars_only = [c for c in text if c.strip() and c not in "，。！？、：；“”‘’《》()（）【】· \n\t"]
+        if len(chars_only) > 1:
+            # 1. 字符信息熵 (Shannon Entropy) -> 反映模型概率分布的平滑性
+            freqs = Counter(chars_only)
+            entropy = -sum((cnt/len(chars_only)) * math.log2(cnt/len(chars_only)) for cnt in freqs.values())
+            details['metrics']['shannon_entropy'] = {
+                "value": round(entropy, 2), 
+                "details": f"文本散度/信息熵 (Entropy): {round(entropy, 2)} (AI生成文本的字频分布往往高度集中在常见字区间)"
+            }
+            if entropy < 4.0: # 假设阈值，分布过于集中
+                score += 10
+                details['metrics']['shannon_entropy']['details'] += " [触发低概率分布惩罚]"
+                
+            # 2. 二元词汇多样度 (Bigram Type-Token Ratio, TTR) -> 衡量机器复读机特性
+            bigrams = ["".join(chars_only[i:i+2]) for i in range(len(chars_only)-1)]
+            ttr = len(set(bigrams)) / len(bigrams) if bigrams else 1
+            details['metrics']['bigram_ttr'] = {
+                "value": round(ttr, 3), 
+                "details": f"高级二元多样度 (2-gram TTR): {round(ttr, 3)} (市面核心技术指标，低TTR说明系统在反复调用相似固定词对)"
+            }
+            if ttr < 0.65:
+                score += 15
+                details['metrics']['bigram_ttr']['details'] += " [触发词汇贫乏与复用惩罚]"
+                
+            # 3. 句法嵌套深度代理 (Clause Chain Density) -> AI的“特长定语句”特性
+            clauses = [c for c in re.split(r'[，。！？；：]+', text) if c.strip()]
+            actual_sentences = [s for s in re.split(r'[。！？.!?]+', text) if s.strip()]
+            if len(actual_sentences) > 0:
+                clauses_per_sentence = len(clauses) / len(actual_sentences)
+                details['metrics']['clause_chain_density'] = {
+                    "value": round(clauses_per_sentence, 2), 
+                    "details": f"单句从句嵌套密度 (Clause Density): {round(clauses_per_sentence, 2)} (大模型偏爱层层嵌套的绵长定语/状语从句)"
+                }
+                if clauses_per_sentence > 3.8:
+                    score += 10
+                    details['metrics']['clause_chain_density']['details'] += " [触发重度巨长从句结构惩罚]"
         
         # 4. Hedging (学术对冲词，减分项 - 人类常用)
         hedging_zh = ["可能表明", "似乎", "潜在地", "有待进一步", "暗示了", "在某种程度上", "倾向于"]
@@ -273,6 +313,16 @@ def process_pipeline(text, lang, target_format, discipline, api_base, api_key, m
                     hedge_count = metrics.get('scholarly_hedging', {}).get('count', 0)
                     if hedge_count == 0:
                         feedback_points.append("4. 行文过于具备机器般的绝对权威感，缺乏真实大学生/学者的谦逊与克制（缺乏对冲语气）。请在合适的地方加入严谨的对冲表达（如“可能表明”、“似乎”、“在探讨某种程度上”等）。")
+
+                # 提取 NLP 技术特征反馈 (仅针对中文版)
+                if not is_en:
+                    ttr_obj = metrics.get('bigram_ttr', {})
+                    if ttr_obj.get('value', 1.0) < 0.65:
+                        feedback_points.append("5. 机器指纹暴露：高频二元词重复率过高（Bigram TTR 极低）。AI极其喜欢反复套用熟练度高的固定词组。请大幅度更换近义词修饰与表达，绝对不要在一段内反复复用相似的组合或词汇。")
+                        
+                    clause_obj = metrics.get('clause_chain_density', {})
+                    if clause_obj.get('value', 0) > 3.8:
+                        feedback_points.append("6. 机器指纹暴露：句法嵌套过深（平均单句逗号数太多，Clause Density极高）。大模型写作特喜欢叠床架屋地使用绵长定语从句。请立即挥刀将超长定语断开，转换为多个清爽独立的短陈述句进行论述。")
 
             if not feedback_points:
                 msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，完全隐去刻意的逻辑连接词，并降低用词的虚无与卖弄感。"
