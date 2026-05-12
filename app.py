@@ -405,6 +405,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
             st.write(f"🔬 第{round_num}轮评估的AI近似指纹分数: {ai_score}/100")
             if ai_details:
                 st.expander(f"第{round_num}轮AI评估详细指标").json(ai_details.get('metrics', {}))
+            st.expander(f"第{round_num}轮改写结果").text(revised)
 
             if ai_score < best_score:
                 best_score = ai_score
