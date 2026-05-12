@@ -1,0 +1,14 @@
+
+# No external dependencies required for basic functionality
+# Optional dependencies for enhanced analysis (future features):
+# The scripts use only Python standard library
+# matplotlib>=3.7
+# nltk>=3.8
+# numpy>=1.24
+# pandas>=2.0
+# scikit-learn>=1.3
+# spacy>=3.7
+# textstat>=0.7
+numpy
+openai
+streamlit
