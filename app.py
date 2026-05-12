@@ -156,39 +156,49 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
     
     prompt_zh = f"""你是一位专门为{discipline}领域润色的资深人类编辑。
     你的核心任务是去除文本中浮夸、空洞、机械的AI生成痕迹，将其转化为符合指定风格要求的人类真实表述。
-    
+
     {extra_tone_zh}
 
     {discipline} 领域的专属写作约束：
     {extra_rule_zh}
 
+    【最高优先级——内容保真原则】：
+    - 润色后必须保留原文所有实质性信息，包括但不限于：论点、实验方法、实验结果、数据指标、结论。不得遗漏任何事实性内容。
+    - 润色的目的是改写表达方式，而非删减内容。如果原文某句话包含具体信息，你必须用另一种更自然的表述方式重写它，而不是直接删掉。
+    - 润色后字数应与原文大致相当，不得大幅缩水。如果发现字数明显减少，说明你删除了过多内容，这是错误的。
+
     请应用以下核心策略：
-    1. 遵循风格与专业度：在满足【风格指令】的前提下，保留核心论证逻辑与案例事实，润色后字数原则上不要剧烈缩水。
+    1. 遵循风格与专业度：在满足【风格指令】的前提下，保留核心论证逻辑与案例事实。
     2. 增加句式错落感（Burstiness）：打破平均15-20字的均匀句式，交叉使用长短句，以及倒装、定语前置等符合人类习惯的复杂句型，刻意消除文本的高度对称排比。
-    3. 提纯词汇（降维）：删除AI高频的伪高级大词，替换为具体客观的表述。避免浮夸的辞藻。
-    4. 消除机械答题模式：极力避免编号逻辑结构（如"首先、其次、综上所述"），不要在段末附加多余的总结套话，通过内容的内在逻辑来衔接段落结构。
+    3. 提纯词汇（降维）：将AI高频的伪高级大词替换为具体客观的表述。注意是"替换"而非"删除"——例如"有效解决了"应改为具体描述解决了什么问题，而非直接删掉这句话。
+    4. 消除机械答题模式：极力避免编号逻辑结构（如"首先、其次、综上所述"），不要在段末附加多余的总结套话，通过内容的内在逻辑来衔接段落结构。但注意：去掉总结套话后，套话中包含的实质信息仍需保留在正文中。
     5. 移除机器排版风格：如果是普通自然段落，坚决禁止将文字改写成频繁使用加粗短语起手的垂直列表（禁止使用如"**一、核心问题：**"格式）。
     6. 原样保留所有的LaTeX公式，绝对不要擅自更改数学符号或排版结构。
 
-    【严禁使用的AI味词汇和表达】（这些是AI生成文本的指纹，必须全部替换为更自然的表述）：
-    - 旨在 → 改为"为了"、"目的是"或直接省略
-    - 总体来看 / 总体而言 / 整体来看 → 删除，直接陈述结论
-    - 似乎 / 可能表明 / 或可 / 或可为 → 删除或改为更确定的表述，过度对冲是AI改写的头号特征
-    - 在一定程度上 / 在某种程度上 / 某种平衡 → 删除或具体化，这种含糊其辞是AI的典型伪装
-    - 有效解决了 / 实现了...的良好平衡 → 改为具体的成果描述
-    - 提供了...的技术方案 → 改为更朴实的说法
-    - 核心痛点 / 关键挑战 → 改为"主要问题"、"难点"
-    - 智能化 / 自动化 → 仅在必要时保留，不要堆砌
-    - 综上所述 / 总而言之 / 由此可见 → 删除，用内容自然收束
-    - 此外 / 另外 / 不仅如此 → 删除，靠语义衔接
-    - 值得注意的是 / 需要强调的是 → 删除，直接说重点
-    - 不可或缺 / 至关重要 / 举足轻重 → 改为"重要"、"关键"等朴素词
-    - 不仅...而且 / 既...又 → 减少使用，改为平铺直叙
+    【需要替换的AI味表达】（这些是AI生成文本的指纹，请替换为更自然的表述，而非直接删除）：
+    - 旨在 → 替换为"为了"、"目的是"或直接省略
+    - 总体来看 / 总体而言 / 整体来看 → 替换为直接陈述结论
+    - 似乎 / 可能表明 / 或可 / 或可为 → 替换为更确定的表述，过度对冲是AI改写的头号特征
+    - 在一定程度上 / 在某种程度上 / 某种平衡 → 替换为具体化表述
+    - 有效解决了 → 替换为具体描述解决了什么问题、效果如何
+    - 实现了...的良好平衡 → 替换为具体说明平衡了什么
+    - 提供了...的技术方案 → 替换为更朴实的说法
+    - 核心痛点 → 替换为"主要问题"、"难点"
+    - 综上所述 / 总而言之 / 由此可见 → 替换为用内容自然收束
+    - 值得注意的是 / 需要强调的是 → 替换为直接说重点
+    - 不可或缺 / 至关重要 / 举足轻重 → 替换为"重要"、"关键"等朴素词
+
+    【可以保留的正常学术表达】（以下表达在学术文本中是正常的，不要误删）：
+    - "构建了"、"提出了"、"确立了"、"展现了" — 这是标准学术动词
+    - "智能化"、"自动化"、"数字化" — 在CS/工程领域是专业术语，可正常使用
+    - "显著"、"高效"、"优异" — 有具体数据支撑时可正常使用
+    - "此外"、"另外" — 偶尔使用是正常的，不要每个都删
+    - "关键问题"、"关键挑战" — 正常学术表达
 
     【关键原则】：
     - 写得像人，不是写得像"试图模仿人的AI"。人类写作的特点是：直接、具体、有主见、不绕弯子。
     - 不要为了显得"谨慎"而堆砌对冲词。真正的学术对冲是"有待进一步验证"、"尚需探讨"，而不是"似乎在一定程度上可能表明"。
-    - 每句话都要有信息增量，不要写废话。
+    - 每句话都要有信息增量，不要写废话。但反过来，有信息量的句子绝对不能删。
 
     格式要求：
     - 不要解释，禁止输出排版花样，直接输出纯净还原为自然连贯的段落文本。
@@ -233,7 +243,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
                 # 检查过多过渡词
                 trans_count = metrics.get('transition_overuse', {}).get('count', 0)
                 if trans_count > 0:
-                    msg = f"2. Overused mechanical transition words (detected {trans_count} times). Please remove these rigid connectors entirely and rely strictly on contextual meaning for transitions." if is_en else f"2. 滥用了机械刻板的过渡词（被检测到 {trans_count} 次），请全部删除这些僵硬的连接词，完全通过上下文语义本身来自然承接逻辑。"
+                    msg = f"2. Overused mechanical transition words (detected {trans_count} times). Please remove these rigid connectors entirely and rely strictly on contextual meaning for transitions." if is_en else f"2. 滥用了机械刻板的过渡词（被检测到 {trans_count} 次），请将这些过渡词替换为更自然的语义衔接方式，或直接通过上下文逻辑承接。"
                     feedback_points.append(msg)
                 
                 # 检查套话大词
@@ -242,17 +252,17 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
                     abs_count = metrics.get('abstract_language', {}).get('total_count', 0)
                     
                 if abs_count > 0:
-                    msg = f"3. Contains abstract placeholder phrases or empty wording (detected {abs_count} times). Please replace vague scaffolding with concrete concepts and specific theories." if is_en else f"3. 存在较多空泛套话和大词（被检测到 {abs_count} 次），请坚决删掉这些毫无信息密度的字眼，改为具体的论述或直接说事，用词必须朴实。"
+                    msg = f"3. Contains abstract placeholder phrases or empty wording (detected {abs_count} times). Please replace vague scaffolding with concrete concepts and specific theories." if is_en else f"3. 存在较多空泛套话和大词（被检测到 {abs_count} 次），请将这些空泛表述替换为具体的论述或朴实的说法，注意保留原有实质信息。"
                     feedback_points.append(msg)
                 
                 # 检查AI过度对冲词（关键修正：旧逻辑鼓励添加对冲词，这是错误的）
                 if not is_en:
                     over_hedge = metrics.get('over_hedging', {})
                     hedge_count = over_hedge.get('count', 0)
-                    if hedge_count >= 2:
+                    if hedge_count >= 3:
                         hedge_items = over_hedge.get('items', [])
                         hedge_examples = "、".join([f'"{h[0]}"' for h in hedge_items[:5]])
-                        feedback_points.append(f'4. 【严重AI痕迹】过度使用对冲词/含糊表达（检测到 {hedge_count} 个，如{hedge_examples}）。这是AI改写文本的头号特征——AI为了模仿"学术谨慎"会堆砌"似乎"、"可能表明"、"在一定程度上"等词，但人类学者不会这样写。请删除所有过度对冲词，改为直接、确定的表述。如需表达不确定性，使用"有待验证"、"尚需探讨"等真正的人类学术表达。')
+                        feedback_points.append(f'4. 【严重AI痕迹】过度使用对冲词/含糊表达（检测到 {hedge_count} 个，如{hedge_examples}）。这是AI改写文本的头号特征——AI为了模仿"学术谨慎"会堆砌"似乎"、"可能表明"、"在一定程度上"等词，但人类学者不会这样写。请将这些过度对冲词替换为更直接、确定的表述。如需表达不确定性，使用"有待验证"、"尚需探讨"等真正的人类学术表达。')
 
                 # 提取 NLP 技术特征反馈 (仅针对中文版)
                 if not is_en:
@@ -271,8 +281,8 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
 
                     # 新增：成语滥用反馈
                     idiom_obj = metrics.get('idiom_overuse', {})
-                    if idiom_obj.get('count', 0) >= 3:
-                        feedback_points.append(f"8. 机器指纹暴露：成语/四字词组堆砌过多（检测到 {idiom_obj.get('count', 0)} 个）。AI生成中文时特别喜欢堆砌成语，人类使用更克制。请删除多余的成语，改为平实表述。")
+                    if idiom_obj.get('count', 0) >= 4:
+                        feedback_points.append(f"8. 机器指纹暴露：成语/四字词组堆砌过多（检测到 {idiom_obj.get('count', 0)} 个）。AI生成中文时特别喜欢堆砌成语，人类使用更克制。请将多余的成语替换为平实表述。")
 
                     # 新增：标点密度反馈
                     punct_obj = metrics.get('punctuation_density', {})
@@ -281,17 +291,17 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
 
                     # 新增：段末总结套话反馈
                     concluding_obj = metrics.get('concluding_formula', {})
-                    if concluding_obj.get('count', 0) >= 2:
-                        feedback_points.append(f'10. 机器指纹暴露：段末总结套话过多（检测到 {concluding_obj.get("count", 0)} 处，如"总体来看"、"综上所述"等）。请删除这些总结性套话，让内容自然收束。')
+                    if concluding_obj.get('count', 0) >= 3:
+                        feedback_points.append(f'10. 机器指纹暴露：段末总结套话过多（检测到 {concluding_obj.get("count", 0)} 处，如"总体来看"、"综上所述"等）。请将这些总结性套话替换为内容的自然收束，但保留套话中包含的实质信息。')
 
             if not feedback_points:
-                msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，完全隐去刻意的逻辑连接词，并降低用词的虚无与卖弄感。"
+                msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，替换刻意的逻辑连接词为自然衔接，并将空泛用词替换为朴实具体的表述。"
                 feedback_points.append(msg)
                 
             feedback_str = "\n".join(feedback_points)
             refine_prompt = (f"The previous output still retains machine-generated stiffness. The system detected the following critical AI markers:\n\n{feedback_str}\n\nPlease rigorously self-correct based on these specific flaws and rewrite the text. Maintain logic and professional rigor, but absolutely eliminate the AI characteristics mentioned above." 
                              if is_en else
-                             '上一次的改写依然残留机器生成的生硬感。系统检测程序发现了以下致命的机器味缺陷：\n\n' + feedback_str + '\n\n请严格基于上述缺陷逐一自纠并重新输出。核心原则：写得像人，不是写得像"试图模仿人的AI"。删除所有过度对冲词（如"似乎"、"可能表明"、"在一定程度上"），删除所有总结套话（如"总体来看"、"综上所述"），删除所有空泛大词。改为直接、具体、有主见的表述。保持论证逻辑和专业度，但必须彻底消灭以上指出的AI特征。')
+                             '上一次的改写依然残留机器生成的生硬感。系统检测程序发现了以下机器味缺陷：\n\n' + feedback_str + '\n\n请基于上述缺陷逐一自纠并重新输出。核心原则：写得像人，不是写得像"试图模仿人的AI"。将过度对冲词（如"似乎"、"可能表明"、"在一定程度上"）替换为更直接确定的表述，将总结套话（如"总体来看"、"综上所述"）替换为内容自然收束，将空泛大词替换为具体朴实的表述。注意是"替换"而非"删除"——每一条被修改的表述都必须保留其原有的实质信息。不得遗漏原文中的任何论点、实验结果或结论。')
             
             response = client.chat.completions.create(
                 model=model_id,
@@ -302,8 +312,8 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
                     {"role": "user", "content": refine_prompt}
                 ],
                 temperature=0.85,
-                frequency_penalty=0.6,
-                presence_penalty=0.4
+                frequency_penalty=0.3,
+                presence_penalty=0.2
             )
             revised = response.choices[0].message.content
             ai_score, ai_details2 = calculate_ai_rate(revised, lang)
