@@ -136,7 +136,7 @@ def format_formulas(text, target_format):
 def process_pipeline(text, lang, target_format, discipline, api_base, api_key, model_id):
     client = openai.OpenAI(api_key=api_key, base_url=api_base)
     
-    prompt_en = f"""You are an expert editor who humanizes academic writing in the social sciences, specifically in {discipline}.
+    prompt_en = f"""You are an expert editor who humanizes academic writing, specifically in the field of {discipline}.
     Your goal is to transform the provided AI-generated text into authentic human scholarly writing.
     
     Apply the following core strategies:
@@ -151,7 +151,7 @@ def process_pipeline(text, lang, target_format, discipline, api_base, api_key, m
     - Output ONLY the rewritten text, with no explanations or rationale block.
     """
     
-    prompt_zh = f"""你是一位专门为社会科学（尤其是 {discipline}）领域学术论文润色的资深人类编辑。
+    prompt_zh = f"""你是一位专门为{discipline}领域学术论文润色的资深人类编辑。
     你的核心任务是去除文本中浮夸、空洞、喜欢卖弄的AI学术腔调，将其转化为朴实、严谨、真诚且干脆的真实学者写作风格。
 
     请应用以下核心策略：
@@ -275,8 +275,8 @@ with st.sidebar:
     lang_opt = st.radio("Language", ["中文 (Chinese)", "English"])
     format_opt = st.radio("Target Format", ["LaTeX", "Word (Separated Formulas)"])
     discipline_opt = st.selectbox(
-        "Discipline (Social Sciences)",
-        ["Sociology", "Anthropology", "Political Science", "Education", "Psychology"]
+        "Discipline",
+        ["Computer Science", "Engineering", "Economics/Business", "Sociology", "Anthropology", "Political Science", "Education", "Psychology"]
     )
 
 st.subheader("Input Text")
