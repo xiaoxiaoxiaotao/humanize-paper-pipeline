@@ -284,9 +284,9 @@ st.markdown("基于多轮API调用和规则过滤的AI论文防查重、自然�
 
 with st.sidebar:
     st.header("⚙️ API Settings")
-    api_base = st.text_input("Base URL", value="https://api.openai.com/v1")
+    api_base = st.text_input("Base URL", value="https://token.sensenova.cn/v1")
     api_key = st.text_input("API Key", type="password")
-    model_id = st.text_input("Model ID", value="gpt-4o")
+    model_id = st.text_input("Model ID", value="deepseek-v4-flash")
     
     st.header("📝 Options")
     lang_opt = st.radio("Language", ["中文 (Chinese)", "English"])
