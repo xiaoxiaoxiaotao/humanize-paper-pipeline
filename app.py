@@ -270,7 +270,8 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
         "Anthropology": "Values ethnographic detail, 'thick description', and reflexive voice. Subjective and descriptive language is more acceptable here.",
         "Political Science": "Emphasize institutional frameworks, power dynamics, and hypothesis testing.",
         "Education": "Focus on pedagogy, learning outcomes, and equity. Policy relevance is often highlighted.",
-        "Psychology": "Use precise operational definitions and behavioral mechanisms. Experimental design descriptions should be rigid but natural."
+        "Psychology": "Use precise operational definitions and behavioral mechanisms. Experimental design descriptions should be rigid but natural.",
+        "其他 (Other)": "Follow general academic writing conventions appropriate for your field. Maintain appropriate formality, precision, and logical flow. Use terminology standard in your discipline without unnecessary embellishment."
     }
     
     discipline_rules_zh = {
@@ -281,11 +282,12 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
         "Anthropology": "看重民族志细节、“深描”和反思性语态。在这里，主观和描述性的语言更加被接受。",
         "Political Science": "强调制度框架、权力动态和假设检验语言。",
         "Education": "关注教学法、学习结果和教育公平。突出政策相关性。",
-        "Psychology": "必须使用精确的操作性定义和行为机制术语。实验设计的描述应当严谨自然。"
+        "Psychology": "必须使用精确的操作性定义和行为机制术语。实验设计的描述应当严谨自然。",
+        "其他 (Other)": "遵循您所在领域的一般学术写作规范。保持适当的正式性、精确性和逻辑流畅性。使用您所在学科的标准术语，避免不必要的修饰。"
     }
     
-    extra_rule_en = discipline_rules_en.get(discipline, "")
-    extra_rule_zh = discipline_rules_zh.get(discipline, "")
+    extra_rule_en = discipline_rules_en.get(discipline, discipline_rules_en["其他 (Other)"])
+    extra_rule_zh = discipline_rules_zh.get(discipline, discipline_rules_zh["其他 (Other)"])
     
     # 语气特定的补充约束
     tone_rules_en = {
@@ -519,7 +521,7 @@ with st.sidebar:
     )
     discipline_opt = st.selectbox(
         "Discipline",
-        ["Computer Science", "Engineering", "Economics/Business", "Sociology", "Anthropology", "Political Science", "Education", "Psychology"]
+        ["Computer Science", "Engineering", "Economics/Business", "Sociology", "Anthropology", "Political Science", "Education", "Psychology", "其他 (Other)"]
     )
     strategy_opt = st.selectbox(
         "改写策略",
