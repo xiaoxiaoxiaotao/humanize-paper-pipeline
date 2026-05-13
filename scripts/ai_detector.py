@@ -26,7 +26,12 @@ class AIDetector:
     AI_TRANSITIONS = [
         'moreover', 'furthermore', 'additionally', 'in addition',
         'it is important to note that', 'it should be noted that',
-        'it is worth noting that', 'notably', 'significantly'
+        'it is worth noting that', 'notably', 'significantly',
+        'however', 'nevertheless', 'therefore', 'thus',
+        'consequently', 'hence', 'accordingly', 'overall',
+        'in conclusion', 'to summarize', 'to sum up',
+        'taken together', 'in essence', 'firstly', 'secondly',
+        'thirdly', 'lastly', 'finally'
     ]
     
     # Abstract placeholder phrases common in AI writing
@@ -35,7 +40,26 @@ class AIDetector:
         'in terms of', 'with regard to', 'with respect to',
         'it can be seen that', 'it has been shown that',
         'plays an important role', 'plays a crucial role',
-        'serves as', 'acts as', 'functions as'
+        'serves as', 'acts as', 'functions as',
+        'various ways', 'multiple dimensions', 'different angles',
+        'significant impact', 'profound effect', 'important implications',
+        'key factors', 'critical aspects', 'essential components',
+        'a variety of', 'a number of', 'a range of',
+        'in the context of', 'from the perspective of',
+        'in the realm of', 'in the field of',
+        'has gained attention', 'has drawn interest',
+        'has been widely studied', 'has been extensively researched',
+        'leveraging', 'utilizing', 'using', 'employing',
+        'substantial', 'considerable', 'significant'
+    ]
+    
+    # Hedging language common in AI writing
+    HEDGING_PHRASES = [
+        'may suggest', 'might indicate', 'could imply',
+        'would seem', 'appears to be', 'seems to',
+        'to some extent', 'in some cases', 'to a certain degree',
+        'tends to', 'is likely to', 'is possible that',
+        'potentially', 'presumably', 'arguably'
     ]
     
     # Passive voice markers
