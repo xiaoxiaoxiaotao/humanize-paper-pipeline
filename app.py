@@ -127,6 +127,7 @@ CHINESE_METRIC_THRESHOLDS = {
     'suizhe_template': {'max_score': 6, 'max_count': 1, 'description': '"随着/基于"模板'},
     'paragraph_template': {'max_score': 6, 'description': '段落模板化'},
     'definition_pattern': {'max_score': 6, 'max_count': 1, 'description': '"是...的"定义式'},
+    'em_dash_overuse': {'max_score': 4, 'max_count': 1, 'description': '破折号滥用'},
     'citation_distribution': {'max_score': 5, 'description': '引用分布'},
 }
 
@@ -419,6 +420,14 @@ CHINESE_METRIC_FEEDBACK = {
         "修复方案：将定义式改写为主动句或描述句。"
         "'X是Y的重要基础'→'X为Y奠定了基础'或'Y依赖于X'。"
         "避免连续使用'是...的'结构。"
+    ),
+    'em_dash_overuse': (
+        "【AI典型痕迹——破折号滥用】检测到文本中使用了破折号（——）来进行解释说明。"
+        "这是AI写作的典型习惯——AI倾向于用破折号插入补充说明，而人类学术写作中"
+        "几乎不使用破折号，通常用逗号、冒号或另起一句来处理。\n"
+        "修复方案：将所有破折号替换为逗号、冒号或拆分为独立句子。"
+        "例如'X实现了Y——Z'应改为'X实现了Y，即Z'或'X实现了Y。Z正是这一目标的具体体现。'"
+        "注意：中文破折号占用两个汉字宽度（——），在学术文本中极其罕见，必须全部清除。"
     ),
     'citation_distribution': (
         "【引用集中在句末】超过80%的引文出现在句子末尾，"

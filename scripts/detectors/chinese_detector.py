@@ -121,6 +121,7 @@ class ChineseDetector(BaseDetector):
         score, details = self._analyze_suizhe_template(text, score, details)
         score, details = self._analyze_paragraph_template(paragraphs, score, details)
         score, details = self._analyze_definition_pattern(text, score, details)
+        score, details = self._analyze_em_dash_overuse(text, score, details)
         score, details = self._analyze_citation_distribution(text, score, details)
 
         final_score = min(100, max(0, score))
@@ -707,6 +708,36 @@ class ChineseDetector(BaseDetector):
             'count': count,
             'score': metric_score,
             'details': f'"是...的"定义式 {count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_em_dash_overuse(self, text: str, score: int,
+                                details: Dict) -> Tuple[int, Dict]:
+        em_dash_count = text.count('——')
+        single_dash_count = text.count('—') - em_dash_count * 2
+
+        total_dashes = em_dash_count + max(0, single_dash_count // 2)
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fa5]', text))
+
+        density = (total_dashes / chinese_chars) * 1000 if chinese_chars > 0 else 0
+
+        metric_score = 0
+        if total_dashes >= 3:
+            metric_score = 12
+        elif total_dashes >= 2:
+            metric_score = 8
+        elif total_dashes >= 1:
+            metric_score = 4
+
+        if density > 3.0:
+            metric_score = max(metric_score, 10)
+
+        details['metrics']['em_dash_overuse'] = {
+            'count': total_dashes,
+            'density_per_1000': round(density, 2),
+            'score': metric_score,
+            'details': f'破折号 {total_dashes} 处（密度{density:.1f}/千字）'
         }
 
         return score + metric_score, details
