@@ -6,13 +6,11 @@ import re
 import argparse
 from typing import Dict, Tuple, Optional
 
-from ai_detector import AIDetector
-from zh_detector_enhanced import analyze_chinese_text
+from detectors import EnglishDetector, ChineseDetector, VIPDetector
+from humanizers import ChineseHumanizer, VIPHumanizer
 from text_analyzer import TextAnalyzer
 from formatter import strip_latex
-from enhancements import AdversarialRewriter, PerplexitySurrogate, humanize_with_adversarial_rules
-from vip_detector import VIPDetector
-from vip_humanizer import VIPHumanizer
+from enhancements import PerplexitySurrogate
 
 
 class DetectionPipeline:
@@ -20,16 +18,15 @@ class DetectionPipeline:
     统一的AI检测管道
 
     整合所有检测功能:
-    - 英文文本检测 (ai_detector.py)
-    - 中文文本检测 (zh_detector_enhanced.py)
-    - 文本质量分析 (text_analyzer.py)
-    - 困惑度代理 (enhancements.py)
+    - 英文文本检测 (EnglishDetector)
+    - 中文文本检测 (ChineseDetector)
+    - 维普专用检测 (VIPDetector)
+    - 人类化改写 (Humanizers)
+    - 文本质量分析 (TextAnalyzer)
     """
 
     def __init__(self, lang: str = 'auto'):
         self.lang = lang
-        self.adversarial_rewriter = None
-        self.perplexity_surrogate = None
 
     def detect(self, text: str, lang: Optional[str] = None) -> Tuple[int, Optional[Dict]]:
         """
@@ -70,11 +67,13 @@ class DetectionPipeline:
         return 'en'
 
     def _detect_chinese(self, text: str) -> Tuple[int, Optional[Dict]]:
-        """检测中文文本"""
-        ai_score, details = analyze_chinese_text(text, use_advanced=True)
+        """检测中文文本 - 使用ChineseDetector"""
+        detector = ChineseDetector()
+        ai_score, details = detector.detect(text)
 
-        self.perplexity_surrogate = PerplexitySurrogate(lang='zh')
-        ppl_metrics = self.perplexity_surrogate.calculate_surrogate_perplexity(text)
+        # 添加困惑度代理分析
+        perplexity_surrogate = PerplexitySurrogate(lang='zh')
+        ppl_metrics = perplexity_surrogate.calculate_surrogate_perplexity(text)
 
         if 'nlp_metrics' not in details:
             details['nlp_metrics'] = {}
@@ -83,55 +82,20 @@ class DetectionPipeline:
         return ai_score, details
 
     def _detect_english(self, text: str) -> Tuple[int, Optional[Dict]]:
-        """检测英文文本"""
+        """检测英文文本 - 使用EnglishDetector"""
         try:
-            detector = AIDetector(text)
-            result = detector.analyze()
-            score = int(result['overall_score'] * 100)
+            detector = EnglishDetector()
+            score, details = detector.detect(text)
 
-            self.perplexity_surrogate = PerplexitySurrogate(lang='en')
-            ppl_metrics = self.perplexity_surrogate.calculate_surrogate_perplexity(text)
-            result['nlp_metrics'] = {'perplexity_surrogate': ppl_metrics}
+            # 添加困惑度代理分析
+            perplexity_surrogate = PerplexitySurrogate(lang='en')
+            ppl_metrics = perplexity_surrogate.calculate_surrogate_perplexity(text)
+            
+            details['nlp_metrics'] = {'perplexity_surrogate': ppl_metrics}
 
-            return min(100, max(0, score)), result
+            return score, details
         except Exception as e:
             return 50, {'error': str(e)}
-
-    def analyze_quality(self, text: str, lang: Optional[str] = None) -> Dict:
-        """分析文本质量指标"""
-        target_lang = lang if lang and lang != 'auto' else self._detect_language(text)
-
-        if target_lang == 'zh':
-            return {'note': 'Chinese quality analysis not implemented yet'}
-        else:
-            try:
-                analyzer = TextAnalyzer(text)
-                return analyzer.analyze()
-            except Exception as e:
-                return {'error': str(e)}
-
-    def apply_adversarial_rules(self, text: str, metrics: Optional[Dict] = None) -> Tuple[str, list]:
-        """
-        应用对抗性改写规则
-
-        这可以帮助将AI文本改写得更像人类写作
-
-        Returns:
-            Tuple of (rewritten_text, list_of_changes)
-        """
-        target_lang = self.lang if self.lang != 'auto' else self._detect_language(text)
-
-        if self.adversarial_rewriter is None or self.adversarial_rewriter.lang != target_lang:
-            self.adversarial_rewriter = AdversarialRewriter(lang=target_lang)
-
-        return self.adversarial_rewriter.apply_adversarial_rewrite(text)
-
-    def generate_feedback(self, metrics: Dict, is_en: bool) -> str:
-        """生成检测反馈"""
-        if self.adversarial_rewriter is None:
-            self.adversarial_rewriter = AdversarialRewriter(lang='zh' if not is_en else 'en')
-
-        return self.adversarial_rewriter.generate_feedback_from_detection(metrics, is_en)
 
     def detect_for_vip(self, text: str) -> Tuple[int, Optional[Dict]]:
         """
@@ -151,22 +115,52 @@ class DetectionPipeline:
         if clean_len < 10:
             return 0, {'error': 'Text too short for analysis', 'platform': '维普AIGC'}
 
-        # 使用维普专用检测器
-        vip_detector = VIPDetector()
-        return vip_detector.detect(clean_text)
+        detector = VIPDetector()
+        return detector.detect(clean_text)
 
-    def humanize_for_vip(self, text: str) -> Tuple[str, List[str]]:
+    def humanize(self, text: str, platform: str = 'general') -> Tuple[str, list]:
         """
-        针对维普平台的人类化改写
+        应用人类化改写规则
+
+        Args:
+            text: 要人类化的文本
+            platform: 目标平台 ('general', 'vip')
 
         Returns:
-            Tuple of (humanized_text, list_of_changes)
+            Tuple of (rewritten_text, list_of_changes)
         """
-        vip_humanizer = VIPHumanizer()
-        return vip_humanizer.humanize(text)
+        if platform == 'vip':
+            humanizer = VIPHumanizer()
+        else:
+            lang = self.lang if self.lang != 'auto' else self._detect_language(text)
+            if lang == 'zh':
+                humanizer = ChineseHumanizer()
+            else:
+                # 英文暂时使用中文人类化器（可以后续扩展）
+                humanizer = ChineseHumanizer()
+
+        return humanizer.humanize(text)
+
+    def humanize_for_vip(self, text: str) -> Tuple[str, list]:
+        """针对维普平台的人类化改写"""
+        return self.humanize(text, platform='vip')
+
+    def analyze_quality(self, text: str, lang: Optional[str] = None) -> Dict:
+        """分析文本质量指标"""
+        target_lang = lang if lang and lang != 'auto' else self._detect_language(text)
+
+        if target_lang == 'zh':
+            return {'note': 'Chinese quality analysis not implemented yet'}
+        else:
+            try:
+                analyzer = TextAnalyzer(text)
+                return analyzer.analyze()
+            except Exception as e:
+                return {'error': str(e)}
 
     def full_pipeline(self, text: str, lang: Optional[str] = None,
-                     apply_humanization: bool = False) -> Dict:
+                     apply_humanization: bool = False,
+                     platform: str = 'general') -> Dict:
         """
         完整管道: 检测 + 分析 + (可选)人类化
 
@@ -174,33 +168,32 @@ class DetectionPipeline:
             text: 待处理文本
             lang: 语言
             apply_humanization: 是否应用对抗性人类化规则
+            platform: 目标检测平台 ('general' 或 'vip')
 
         Returns:
             Dict with detection results, quality metrics, and optionally humanized text
         """
         target_lang = lang if lang and lang != 'auto' else self._detect_language(text)
 
-        ai_score, details = self.detect(text, target_lang)
+        if platform == 'vip':
+            ai_score, details = self.detect_for_vip(text)
+        else:
+            ai_score, details = self.detect(text, target_lang)
 
         quality_metrics = self.analyze_quality(text, target_lang)
 
         result = {
             'ai_score': ai_score,
             'detected_language': target_lang,
+            'platform': platform,
             'details': details,
             'quality_metrics': quality_metrics
         }
 
         if apply_humanization:
-            humanized, changes = self.apply_adversarial_rules(text, details)
+            humanized, changes = self.humanize(text, platform)
             result['humanized_text'] = humanized
             result['humanization_changes'] = changes
-
-        feedback = self.generate_feedback(
-            details.get('metrics', {}) if details else {},
-            is_en=(target_lang != 'zh')
-        )
-        result['feedback'] = feedback
 
         return result
 
@@ -214,6 +207,7 @@ Examples:
   python detection_pipeline.py input.txt
   python detection_pipeline.py input.txt --lang zh
   python detection_pipeline.py input.txt --humanize
+  python detection_pipeline.py input.txt --platform vip
   python detection_pipeline.py input.txt --json
         """
     )
@@ -223,10 +217,10 @@ Examples:
                        help='Language of the text (default: auto)')
     parser.add_argument('--humanize', action='store_true',
                        help='Apply adversarial humanization rules')
+    parser.add_argument('--platform', choices=['general', 'vip'], default='general',
+                       help='Target detection platform (default: general)')
     parser.add_argument('--json', action='store_true',
                        help='Output results as JSON')
-    parser.add_argument('--quality', action='store_true',
-                       help='Include text quality metrics')
 
     args = parser.parse_args()
 
@@ -246,19 +240,19 @@ Examples:
 
     pipeline = DetectionPipeline(lang=args.lang)
 
-    import json
-
     result = pipeline.full_pipeline(
         text,
         lang=args.lang if args.lang != 'auto' else None,
-        apply_humanization=args.humanize
+        apply_humanization=args.humanize,
+        platform=args.platform
     )
 
     if args.json:
+        import json
         print(json.dumps(result, indent=2, ensure_ascii=False))
     else:
         print("=" * 70)
-        print(f"AI DETECTION RESULTS")
+        print(f"AI DETECTION RESULTS ({args.platform.upper()})")
         print("=" * 70)
         print(f"Detected Language: {result['detected_language'].upper()}")
         print(f"AI Score: {result['ai_score']}/100")
@@ -269,11 +263,6 @@ Examples:
             print("Assessment: Moderate AI patterns detected")
         else:
             print("Assessment: Low AI patterns detected")
-
-        print()
-        print("Feedback:")
-        print("-" * 70)
-        print(result['feedback'])
 
         if args.humanize and 'humanized_text' in result:
             print()
