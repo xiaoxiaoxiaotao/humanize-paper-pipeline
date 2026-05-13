@@ -10,38 +10,111 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 try:
     from ai_detector import AIDetector
     from zh_detector import analyze_chinese_text
+    from text_analyzer import TextAnalyzer
     HAS_DETECTOR = True
+    HAS_ANALYZER = True
 except ImportError:
     HAS_DETECTOR = False
+    HAS_ANALYZER = False
 
 def calculate_ai_rate(text, lang):
     """
-    一个简单的基于启发式规则的高级“AI率”估算。
+    一个简单的基于启发式规则的高级"AI率"估算。
     分数越高，代表文本越像AI生成的。返回0-100的参考分数。
     """
+    if not text or not text.strip():
+        return 0, None
+
+    text_len = len(text)
+    if text_len < 10:
+        return 0, None
+
+    clean_text = _strip_latex(text)
+    clean_len = len(clean_text.strip())
+    if clean_len < 10:
+        st.warning("文本过短或主要为LaTeX公式，AI检测结果仅供参考")
+        return 0, None
+
+    latex_ratio = 1.0 - (clean_len / max(text_len, 1))
+    if latex_ratio > 0.7:
+        st.info(f"检测到文本中约 {latex_ratio*100:.0f}% 为LaTeX公式，已自动剥离后分析")
+
     if lang == "English" and HAS_DETECTOR:
         try:
-            detector = AIDetector(text)
+            detector = AIDetector(clean_text)
             result = detector.analyze()
-            # 将 0.0-1.0 映射到 0-100
             score = int(result['overall_score'] * 100)
-            details = result
-            return min(100, max(0, score)), details
+            return min(100, max(0, score)), result
         except Exception as e:
             pass
 
     if lang in ["Chinese", "中文 (Chinese)"]:
         try:
-            return analyze_chinese_text(text)
+            return analyze_chinese_text(clean_text)
         except Exception as e:
             pass
 
-    # 针对其他情况的回退保护
-    score = 0
-    words = len(text.split()) if lang == "English" else len(text)
-    if words == 0: return 0, None
+    if not HAS_DETECTOR:
+        st.warning("AI检测模块未加载，使用基础启发式回退检测（精度有限）")
 
-    return min(100, int(score)), None
+    score = _fallback_ai_detection(clean_text, lang)
+    return min(100, max(0, int(score))), None
+
+
+def _strip_latex(text):
+    """剥离LaTeX公式，保留纯文本用于分析"""
+    text = re.sub(r'\$\$.*?\$\$', ' ', text, flags=re.DOTALL)
+    text = re.sub(r'\$[^$]*?\$', ' ', text)
+    text = re.sub(r'\\begin\{.*?\}.*?\\end\{.*?\}', ' ', text, flags=re.DOTALL)
+    text = re.sub(r'\\[a-zA-Z]+(\{[^}]*\})*', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+
+def _fallback_ai_detection(text, lang):
+    """基础回退检测：当高级检测器不可用时的简单启发式"""
+    score = 0
+    if lang == "English":
+        words = text.split()
+        if len(words) < 5:
+            return 0
+        ai_transitions = ['moreover', 'furthermore', 'additionally', 'in addition',
+                          'it is important to note', 'it should be noted', 'it is worth noting']
+        for t in ai_transitions:
+            score += text.lower().count(t) * 8
+        abstract_phrases = ['various aspects', 'multiple factors', 'in terms of',
+                            'plays an important role', 'plays a crucial role']
+        for p in abstract_phrases:
+            score += text.lower().count(p) * 6
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        if len(sentences) >= 3:
+            lengths = [len(s.split()) for s in sentences if s.strip()]
+            if lengths:
+                avg_len = sum(lengths) / len(lengths)
+                variance = sum((l - avg_len) ** 2 for l in lengths) / len(lengths)
+                cv = (variance ** 0.5) / avg_len if avg_len > 0 else 0
+                if cv < 0.25:
+                    score += 20
+                elif cv < 0.35:
+                    score += 10
+    else:
+        if len(text) < 5:
+            return 0
+        ai_patterns = ["随着", "基于", "总体来看", "综上所述", "此外", "值得注意的是",
+                       "具有重要意义", "发挥着重要作用", "首先", "其次", "本文旨在"]
+        for p in ai_patterns:
+            score += text.count(p) * 8
+        sentences = [s.strip() for s in re.split(r'[。！？.!?]+', text) if s.strip()]
+        if len(sentences) >= 3:
+            lengths = [len(s) for s in sentences]
+            avg_len = sum(lengths) / len(lengths)
+            variance = sum((l - avg_len) ** 2 for l in lengths) / len(lengths)
+            cv = (variance ** 0.5) / avg_len if avg_len > 0 else 0
+            if cv < 0.25:
+                score += 20
+            elif cv < 0.40:
+                score += 10
+    return score
 
 def format_clean_chinese(text):
     """清理中文文本中多余的空格和错用的引号"""
@@ -221,159 +294,220 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
     """
     
     system_prompt = prompt_en if lang == "English" else prompt_zh
-    
-    st.info("Pipeline Step 1: Requesting initial humanization rewrite...")
+    is_en = (lang == "English")
+    MAX_ROUNDS = 5
+    AI_THRESHOLD = 45
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": text}
+    ]
+
+    revised = text
+    ai_score = 100
+    ai_details = None
+
     try:
-        response = client.chat.completions.create(
-            model=model_id,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.75,
-            frequency_penalty=0.4,
-            presence_penalty=0.3
-        )
-        revised = response.choices[0].message.content
-        
-        # Calculate AI score
-        ai_score, ai_details = calculate_ai_rate(revised, lang)
-        st.write(f"🔬 第一轮评估的AI近似指纹分数: {ai_score}/100")
-        if ai_details:
-            st.expander("AI评估详细指标").json(ai_details.get('metrics', {}))
-        
-        if ai_score > 45:
-            st.info("AI分数高于阈值，触发Pipeline Step 2: 依据探针自动给出的反馈意见要求大模型进行定点消除...")
-            
-            # 动态提取启发式反馈，组织反馈话术
-            feedback_points = []
-            is_en = (lang == "English")
-            if ai_details and 'metrics' in ai_details:
-                metrics = ai_details['metrics']
-                # 检查句子均匀度
-                uni_score = metrics.get('sentence_uniformity', {}).get('score', 0)
-                if uni_score > 0.3:
-                    msg = "1. Sentence length distribution is too uniform (lacks burstiness). Please break up the sentences drastically, mixing very short sentences (5-10 words) with long complex ones (30+ words)." if is_en else "1. 句长分布依然过于均匀（缺乏自然学术行文的长短句起伏/Burstiness），请进一步刻意打散长短句，插入5-10字短句与30字复杂长句交错。"
-                    feedback_points.append(msg)
-                
-                # 检查过多过渡词
-                trans_count = metrics.get('transition_overuse', {}).get('count', 0)
-                if trans_count > 0:
-                    msg = f"2. Overused mechanical transition words (detected {trans_count} times). Please remove these rigid connectors entirely and rely strictly on contextual meaning for transitions." if is_en else f"2. 滥用了机械刻板的过渡词（被检测到 {trans_count} 次），请将这些过渡词替换为更自然的语义衔接方式，或直接通过上下文逻辑承接。"
-                    feedback_points.append(msg)
-                
-                # 检查套话大词
-                abs_count = metrics.get('abstract_language', {}).get('count', 0)
-                if abs_count == 0 and 'total_count' in metrics.get('abstract_language', {}):
-                    abs_count = metrics.get('abstract_language', {}).get('total_count', 0)
-                    
-                if abs_count > 0:
-                    msg = f"3. Contains abstract placeholder phrases or empty wording (detected {abs_count} times). Please replace vague scaffolding with concrete concepts and specific theories." if is_en else f"3. 存在较多空泛套话和大词（被检测到 {abs_count} 次），请将这些空泛表述替换为具体的论述或朴实的说法，注意保留原有实质信息。"
-                    feedback_points.append(msg)
-                
-                # 检查AI过度对冲词（关键修正：旧逻辑鼓励添加对冲词，这是错误的）
-                if not is_en:
-                    over_hedge = metrics.get('over_hedging', {})
-                    hedge_count = over_hedge.get('count', 0)
-                    if hedge_count >= 3:
-                        hedge_items = over_hedge.get('items', [])
-                        hedge_examples = "、".join([f'"{h[0]}"' for h in hedge_items[:5]])
-                        feedback_points.append(f'4. 【严重AI痕迹】过度使用对冲词/含糊表达（检测到 {hedge_count} 个，如{hedge_examples}）。这是AI改写文本的头号特征——AI为了模仿"学术谨慎"会堆砌"似乎"、"可能表明"、"在一定程度上"等词，但人类学者不会这样写。请将这些过度对冲词替换为更直接、确定的表述。如需表达不确定性，使用"有待验证"、"尚需探讨"等真正的人类学术表达。')
+        for round_num in range(1, MAX_ROUNDS + 1):
+            if round_num == 1:
+                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: 初始改写...")
+            else:
+                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: AI分数 {ai_score} > {AI_THRESHOLD}，触发定点消除...")
 
-                # 提取 NLP 技术特征反馈 (仅针对中文版)
-                if not is_en:
-                    ttr_obj = metrics.get('bigram_ttr', {})
-                    if ttr_obj.get('value', 1.0) < 0.65:
-                        feedback_points.append("5. 机器指纹暴露：高频二元词重复率过高（Bigram TTR 极低）。AI极其喜欢反复套用熟练度高的固定词组。请大幅度更换近义词修饰与表达，绝对不要在一段内反复复用相似的组合或词汇。")
-                        
-                    clause_obj = metrics.get('clause_chain_density', {})
-                    if clause_obj.get('value', 0) > 3.2:
-                        feedback_points.append("6. 机器指纹暴露：句法嵌套过深（平均单句逗号数太多，Clause Density偏高）。大模型写作特喜欢叠床架屋地使用绵长定语从句。请立即将超长定语断开，转换为多个清爽独立的短陈述句。")
-
-                    # 新增：句首模式重复反馈
-                    opening_rep = metrics.get('sentence_opening_repetition', {})
-                    if opening_rep.get('count', 0) >= 3:
-                        feedback_points.append(f"7. 机器指纹暴露：句首模式重复（\"{opening_rep.get('top_pattern', '')}\" 开头出现了 {opening_rep.get('count', 0)} 次）。请变换句首表达，避免同一模式反复出现。")
-
-                    # 新增：成语滥用反馈
-                    idiom_obj = metrics.get('idiom_overuse', {})
-                    if idiom_obj.get('count', 0) >= 4:
-                        feedback_points.append(f"8. 机器指纹暴露：成语/四字词组堆砌过多（检测到 {idiom_obj.get('count', 0)} 个）。AI生成中文时特别喜欢堆砌成语，人类使用更克制。请将多余的成语替换为平实表述。")
-
-                    # 新增：标点密度反馈
-                    punct_obj = metrics.get('punctuation_density', {})
-                    if punct_obj.get('comma_period_ratio', 0) > 3.5:
-                        feedback_points.append(f"9. 机器指纹暴露：逗号/句号比过高（{punct_obj.get('comma_period_ratio', 0)}），说明单句内从句嵌套过多。请多用句号断句，减少逗号连接的长定语。")
-
-                    # 新增：段末总结套话反馈
-                    concluding_obj = metrics.get('concluding_formula', {})
-                    if concluding_obj.get('count', 0) >= 2:
-                        feedback_points.append(f'10. 机器指纹暴露：段末总结套话/本文指向句过多（检测到 {concluding_obj.get("count", 0)} 处，如"总体来看"、"本文将重点研究"等）。请将这些套话替换为内容的自然收束，或将"本文"指向句改为直接陈述研究内容。')
-
-                    # 【新增】"随着/基于...的..."模板句式反馈
-                    suizhe_obj = metrics.get('suizhe_template', {})
-                    if suizhe_obj.get('count', 0) >= 2:
-                        examples = suizhe_obj.get('examples', [])
-                        ex_str = '、'.join(examples[:3]) if examples else ''
-                        feedback_points.append(f'11. 【知网级AI特征】检测到 {suizhe_obj.get("count", 0)} 处"随着/基于/通过...的..."模板句式（如"{ex_str}"）。这是知网/万方检测系统重点识别的AI标志。请将"随着X的Y"改为"X之后，Y..."、"当X时，Y..."等自然表达；将"基于X的Y"改为"使用X的Y"、"以X为基础的Y"。')
-
-                    # 【新增】段落结构模板化反馈
-                    para_template = metrics.get('paragraph_template', {})
-                    if para_template.get('marker_count', 0) >= 3:
-                        feedback_points.append(f'12. 【知网级AI特征】段落结构过于模板化（检测到 {para_template.get("marker_count", 0)}/4 个结构标记：背景→问题→意义→本文方案）。知网检测系统能识别这种机械结构。请打乱顺序，或将背景和意义融合，避免严格按照模板写作。')
-
-                    # 【新增】"是...的"定义式句式反馈
-                    def_pattern = metrics.get('definition_pattern', {})
-                    if def_pattern.get('count', 0) >= 2:
-                        feedback_points.append(f'13. 【知网级AI特征】检测到 {def_pattern.get("count", 0)} 处"是...的"定义式句式。AI喜欢用"XX是YY"下定义。请将定义句改为主谓宾结构，如"XX推动了YY"而非"XX是YY的重要引擎"。')
-
-                    # 【新增】引用分布反馈
-                    citation_obj = metrics.get('citation_distribution', {})
-                    if citation_obj.get('end_citation_ratio', 0) > 0.8 and citation_obj.get('total_citations', 0) >= 3:
-                        feedback_points.append(f'14. 【知网级AI特征】引用过度集中在句末（{citation_obj.get("total_citations", 0)} 个引用，{citation_obj.get("end_citation_ratio", 0)*100:.0f}% 在句末）。AI生成文本的引用位置非常机械。请将部分引用移到句中，或改变引用位置。')
-
-                    # 【新增】信息密度均匀度反馈
-                    info_density = metrics.get('info_density_uniformity', {})
-                    if '惩罚' in info_density.get('details', ''):
-                        feedback_points.append('15. 信息密度过于均匀，每句话长度和信息量相近。请刻意制造起伏——插入短句（5-8字）打破节奏，或扩展某句话使其明显长于其他句子。')
-
-            if not feedback_points:
-                msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，替换刻意的逻辑连接词为自然衔接，并将空泛用词替换为朴实具体的表述。"
-                feedback_points.append(msg)
-                
-            feedback_str = "\n".join(feedback_points)
-            refine_prompt = (f"The previous output still retains machine-generated stiffness. The system detected the following critical AI markers:\n\n{feedback_str}\n\nPlease rigorously self-correct based on these specific flaws and rewrite the text. Maintain logic and professional rigor, but absolutely eliminate the AI characteristics mentioned above." 
-                             if is_en else
-                             '上一次的改写依然残留机器生成的生硬感。系统检测程序发现了以下机器味缺陷：\n\n' + feedback_str + '\n\n请基于上述缺陷逐一自纠并重新输出。核心原则：写得像人，不是写得像"试图模仿人的AI"。将过度对冲词（如"似乎"、"可能表明"、"在一定程度上"）替换为更直接确定的表述，将总结套话（如"总体来看"、"综上所述"）替换为内容自然收束，将空泛大词替换为具体朴实的表述。注意是"替换"而非"删除"——每一条被修改的表述都必须保留其原有的实质信息。不得遗漏原文中的任何论点、实验结果或结论。')
-            
             response = client.chat.completions.create(
                 model=model_id,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": text},
-                    {"role": "assistant", "content": revised},
-                    {"role": "user", "content": refine_prompt}
-                ],
-                temperature=0.85,
-                frequency_penalty=0.3,
-                presence_penalty=0.2
+                messages=messages,
+                temperature=0.75 + (round_num - 1) * 0.05,
+                frequency_penalty=0.3 + (round_num - 1) * 0.05,
+                presence_penalty=0.2 + (round_num - 1) * 0.05
             )
             revised = response.choices[0].message.content
-            ai_score, ai_details2 = calculate_ai_rate(revised, lang)
-            st.write(f"🔬 第二轮评估的AI近似指纹分数: {ai_score}/100")
-            if ai_details2:
-                st.expander("第二轮AI评估详细指标").json(ai_details2.get('metrics', {}))
-            
-        # Post-Processing
+            messages.append({"role": "assistant", "content": revised})
+
+            ai_score, ai_details = calculate_ai_rate(revised, lang)
+            st.write(f"🔬 第{round_num}轮评估的AI近似指纹分数: {ai_score}/100")
+            if ai_details:
+                st.expander(f"第{round_num}轮AI评估详细指标").json(ai_details.get('metrics', {}))
+
+            if HAS_ANALYZER and lang == "English" and round_num == 1:
+                try:
+                    analyzer = TextAnalyzer(revised)
+                    quality = analyzer.analyze()
+                    with st.expander("📊 文本质量分析 (Text Quality Metrics)"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("可读性 (Flesch)", quality.get('readability', {}).get('flesch_reading_ease', 'N/A'))
+                            st.metric("学术词汇占比", f"{quality.get('academic_vocabulary', {}).get('percentage', 0):.1f}%")
+                        with col2:
+                            st.metric("词汇多样性 (TTR)", quality.get('vocabulary', {}).get('ttr', 'N/A'))
+                            st.metric("平均句长 (词)", quality.get('sentence_stats', {}).get('avg_length', 'N/A'))
+                except Exception:
+                    pass
+
+            if ai_score <= AI_THRESHOLD:
+                st.success(f"✅ AI分数已降至 {ai_score}/100，低于阈值 {AI_THRESHOLD}，停止迭代。")
+                break
+
+            if round_num < MAX_ROUNDS:
+                feedback_str = _generate_feedback(ai_details, is_en)
+                messages.append({"role": "user", "content": feedback_str})
+            else:
+                st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，AI分数仍为 {ai_score}/100。建议手动微调。")
+
         if lang == "中文 (Chinese)":
             revised = format_clean_chinese(revised)
-            
+
         revised = format_formulas(revised, target_format)
-            
+
         return revised, ai_score
-        
+
     except Exception as e:
         return f"API调用出错: {str(e)}", 100
+
+
+def _generate_feedback(ai_details, is_en):
+    """根据检测指标生成针对性的反馈提示"""
+    feedback_points = []
+
+    if not ai_details or 'metrics' not in ai_details:
+        msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，替换刻意的逻辑连接词为自然衔接，并将空泛用词替换为朴实具体的表述。"
+        feedback_points.append(msg)
+        return "\n".join(feedback_points)
+
+    metrics = ai_details['metrics']
+
+    uni_score = metrics.get('sentence_uniformity', {}).get('score', 0)
+    if uni_score > 0.3:
+        msg = "1. Sentence length distribution is too uniform (lacks burstiness). Please break up the sentences drastically, mixing very short sentences (5-10 words) with long complex ones (30+ words)." if is_en else "1. 句长分布依然过于均匀（缺乏自然学术行文的长短句起伏/Burstiness），请进一步刻意打散长短句，插入5-10字短句与30字复杂长句交错。"
+        feedback_points.append(msg)
+
+    trans_count = metrics.get('transition_overuse', {}).get('count', 0)
+    if trans_count > 0:
+        msg = f"2. Overused mechanical transition words (detected {trans_count} times). Please remove these rigid connectors entirely and rely strictly on contextual meaning for transitions." if is_en else f"2. 滥用了机械刻板的过渡词（被检测到 {trans_count} 次），请将这些过渡词替换为更自然的语义衔接方式，或直接通过上下文逻辑承接。"
+        feedback_points.append(msg)
+
+    abs_metric = metrics.get('abstract_language', {})
+    abs_count = abs_metric.get('count', abs_metric.get('total_count', 0))
+    if abs_count > 0:
+        msg = f"3. Contains abstract placeholder phrases or empty wording (detected {abs_count} times). Please replace vague scaffolding with concrete concepts and specific theories." if is_en else f"3. 存在较多空泛套话和大词（被检测到 {abs_count} 次），请将这些空泛表述替换为具体的论述或朴实的说法，注意保留原有实质信息。"
+        feedback_points.append(msg)
+
+    if is_en:
+        burst_obj = metrics.get('burstiness', {})
+        if burst_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"4. Sentence burstiness is too low (CV={burst_obj.get('cv', 'N/A')}). Mix very short sentences (5-8 words) with long complex ones (25+ words) to create natural rhythm variation.")
+
+        bigram_obj = metrics.get('bigram_ttr', {})
+        if bigram_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"5. Bigram repetition is too high (TTR={bigram_obj.get('value', 'N/A')}). AI tends to reuse the same word pairs. Vary your phrasing and word combinations significantly.")
+
+        clause_obj = metrics.get('clause_chain_density', {})
+        if clause_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"6. Excessive clause chaining ({clause_obj.get('value', 'N/A')} commas per sentence on average). Break long sentences into shorter, clearer ones.")
+
+        opening_obj = metrics.get('sentence_opening_repetition', {})
+        if opening_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"7. Repetitive sentence openings detected ('{opening_obj.get('top_pattern', '')}' appears {opening_obj.get('count', 0)} times). Vary how you start sentences.")
+
+        hedge_obj = metrics.get('hedging_overuse', {})
+        if hedge_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"8. Excessive hedging language ({hedge_obj.get('count', 0)} instances). AI overuses 'may suggest', 'could indicate', etc. Use more direct, confident academic language.")
+
+        def_obj = metrics.get('definition_pattern', {})
+        if def_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"9. Too many 'X is a Y' definition patterns ({def_obj.get('count', 0)} detected). AI loves defining things. Use more varied sentence structures.")
+
+        conc_obj = metrics.get('concluding_formula', {})
+        if conc_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"10. Formulaic concluding phrases detected ({conc_obj.get('count', 0)} instances). Let content naturally conclude rather than using 'In conclusion' or 'To summarize'.")
+
+        punct_obj = metrics.get('punctuation_density', {})
+        if punct_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"11. High comma-to-period ratio ({punct_obj.get('comma_period_ratio', 'N/A')}). Use more periods to create shorter, punchier sentences.")
+
+        cit_obj = metrics.get('citation_distribution', {})
+        if cit_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"12. Citations clustered at sentence ends ({cit_obj.get('end_citation_ratio', 0)*100:.0f}%). Distribute citations more naturally within sentences.")
+
+        info_obj = metrics.get('info_density_uniformity', {})
+        if info_obj.get('score', 0) > 0.3:
+            feedback_points.append("13. Information density is too uniform across sentences. Create natural peaks and valleys in information load.")
+
+        template_obj = metrics.get('paragraph_template', {})
+        if template_obj.get('score', 0) > 0.3:
+            feedback_points.append(f"14. Template paragraph structure detected ({template_obj.get('marker_count', 0)}/4 markers). Avoid the mechanical background->problem->significance->approach pattern.")
+
+        word_rep = metrics.get('word_repetition', {})
+        if word_rep.get('score', 0) > 0.3:
+            feedback_points.append(f"15. Excessive word repetition ({word_rep.get('repeat_ratio', 0)*100:.1f}% of words repeated 3+ times). Use synonyms and vary vocabulary.")
+
+        sw_ttr = metrics.get('sliding_window_ttr', {})
+        if sw_ttr.get('score', 0) > 0.3:
+            feedback_points.append(f"16. Local vocabulary repetition detected (sliding window TTR={sw_ttr.get('avg_ttr', 'N/A')}). Vary word choice within paragraphs.")
+
+    if not is_en:
+        over_hedge = metrics.get('over_hedging', {})
+        hedge_count = over_hedge.get('count', 0)
+        if hedge_count >= 3:
+            hedge_items = over_hedge.get('items', [])
+            hedge_examples = "、".join([f'"{h[0]}"' for h in hedge_items[:5]])
+            feedback_points.append(f'4. 【严重AI痕迹】过度使用对冲词/含糊表达（检测到 {hedge_count} 个，如{hedge_examples}）。这是AI改写文本的头号特征——AI为了模仿"学术谨慎"会堆砌"似乎"、"可能表明"、"在一定程度上"等词，但人类学者不会这样写。请将这些过度对冲词替换为更直接、确定的表述。如需表达不确定性，使用"有待验证"、"尚需探讨"等真正的人类学术表达。')
+
+        ttr_obj = metrics.get('bigram_ttr', {})
+        if ttr_obj.get('value', 1.0) < 0.65:
+            feedback_points.append("5. 机器指纹暴露：高频二元词重复率过高（Bigram TTR 极低）。AI极其喜欢反复套用熟练度高的固定词组。请大幅度更换近义词修饰与表达，绝对不要在一段内反复复用相似的组合或词汇。")
+
+        clause_obj = metrics.get('clause_chain_density', {})
+        if clause_obj.get('value', 0) > 3.2:
+            feedback_points.append("6. 机器指纹暴露：句法嵌套过深（平均单句逗号数太多，Clause Density偏高）。大模型写作特喜欢叠床架屋地使用绵长定语从句。请立即将超长定语断开，转换为多个清爽独立的短陈述句。")
+
+        opening_rep = metrics.get('sentence_opening_repetition', {})
+        if opening_rep.get('count', 0) >= 3:
+            feedback_points.append(f"7. 机器指纹暴露：句首模式重复（\"{opening_rep.get('top_pattern', '')}\" 开头出现了 {opening_rep.get('count', 0)} 次）。请变换句首表达，避免同一模式反复出现。")
+
+        idiom_obj = metrics.get('idiom_overuse', {})
+        if idiom_obj.get('count', 0) >= 4:
+            feedback_points.append(f"8. 机器指纹暴露：成语/四字词组堆砌过多（检测到 {idiom_obj.get('count', 0)} 个）。AI生成中文时特别喜欢堆砌成语，人类使用更克制。请将多余的成语替换为平实表述。")
+
+        punct_obj = metrics.get('punctuation_density', {})
+        if punct_obj.get('comma_period_ratio', 0) > 3.5:
+            feedback_points.append(f"9. 机器指纹暴露：逗号/句号比过高（{punct_obj.get('comma_period_ratio', 0)}），说明单句内从句嵌套过多。请多用句号断句，减少逗号连接的长定语。")
+
+        concluding_obj = metrics.get('concluding_formula', {})
+        if concluding_obj.get('count', 0) >= 2:
+            feedback_points.append(f'10. 机器指纹暴露：段末总结套话/本文指向句过多（检测到 {concluding_obj.get("count", 0)} 处，如"总体来看"、"本文将重点研究"等）。请将这些套话替换为内容的自然收束，或将"本文"指向句改为直接陈述研究内容。')
+
+        suizhe_obj = metrics.get('suizhe_template', {})
+        if suizhe_obj.get('count', 0) >= 2:
+            examples = suizhe_obj.get('examples', [])
+            ex_str = '、'.join(examples[:3]) if examples else ''
+            feedback_points.append(f'11. 【知网级AI特征】检测到 {suizhe_obj.get("count", 0)} 处"随着/基于/通过...的..."模板句式（如"{ex_str}"）。这是知网/万方检测系统重点识别的AI标志。请将"随着X的Y"改为"X之后，Y..."、"当X时，Y..."等自然表达；将"基于X的Y"改为"使用X的Y"、"以X为基础的Y"。')
+
+        para_template = metrics.get('paragraph_template', {})
+        if para_template.get('marker_count', 0) >= 3:
+            feedback_points.append(f'12. 【知网级AI特征】段落结构过于模板化（检测到 {para_template.get("marker_count", 0)}/4 个结构标记：背景→问题→意义→本文方案）。知网检测系统能识别这种机械结构。请打乱顺序，或将背景和意义融合，避免严格按照模板写作。')
+
+        def_pattern = metrics.get('definition_pattern', {})
+        if def_pattern.get('count', 0) >= 2:
+            feedback_points.append(f'13. 【知网级AI特征】检测到 {def_pattern.get("count", 0)} 处"是...的"定义式句式。AI喜欢用"XX是YY"下定义。请将定义句改为主谓宾结构，如"XX推动了YY"而非"XX是YY的重要引擎"。')
+
+        citation_obj = metrics.get('citation_distribution', {})
+        if citation_obj.get('end_citation_ratio', 0) > 0.8 and citation_obj.get('total_citations', 0) >= 3:
+            feedback_points.append(f'14. 【知网级AI特征】引用过度集中在句末（{citation_obj.get("total_citations", 0)} 个引用，{citation_obj.get("end_citation_ratio", 0)*100:.0f}% 在句末）。AI生成文本的引用位置非常机械。请将部分引用移到句中，或改变引用位置。')
+
+        info_density = metrics.get('info_density_uniformity', {})
+        if '惩罚' in info_density.get('details', ''):
+            feedback_points.append('15. 信息密度过于均匀，每句话长度和信息量相近。请刻意制造起伏——插入短句（5-8字）打破节奏，或扩展某句话使其明显长于其他句子。')
+
+    if not feedback_points:
+        msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，替换刻意的逻辑连接词为自然衔接，并将空泛用词替换为朴实具体的表述。"
+        feedback_points.append(msg)
+
+    feedback_str = "\n".join(feedback_points)
+    if is_en:
+        return f"The previous output still retains machine-generated stiffness. The system detected the following critical AI markers:\n\n{feedback_str}\n\nPlease rigorously self-correct based on these specific flaws and rewrite the text. Maintain logic and professional rigor, but absolutely eliminate the AI characteristics mentioned above."
+    else:
+        return '上一次的改写依然残留机器生成的生硬感。系统检测程序发现了以下机器味缺陷：\n\n' + feedback_str + '\n\n请基于上述缺陷逐一自纠并重新输出。核心原则：写得像人，不是写得像"试图模仿人的AI"。将过度对冲词（如"似乎"、"可能表明"、"在一定程度上"）替换为更直接确定的表述，将总结套话（如"总体来看"、"综上所述"）替换为内容自然收束，将空泛大词替换为具体朴实的表述。注意是"替换"而非"删除"——每一条被修改的表述都必须保留其原有的实质信息。不得遗漏原文中的任何论点、实验结果或结论。'
 
 st.title("🎓 Humanize Academic Paper Pipeline")
 st.markdown("基于多轮API调用和规则过滤的AI论文防查重、自然化润色工具。")

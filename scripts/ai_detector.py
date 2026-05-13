@@ -72,18 +72,32 @@ class AIDetector:
         avg_length = statistics.mean(word_counts)
         std_dev = statistics.stdev(word_counts) if len(word_counts) > 1 else 0
         
-        # Low variance indicates AI (variance < 20% of mean)
         variance_ratio = std_dev / avg_length if avg_length > 0 else 0
+
+        if avg_length < 10:
+            threshold_high = 0.15
+            threshold_mod = 0.25
+            threshold_mild = 0.40
+        elif avg_length < 18:
+            threshold_high = 0.20
+            threshold_mod = 0.30
+            threshold_mild = 0.45
+        else:
+            threshold_high = 0.25
+            threshold_mod = 0.35
+            threshold_mild = 0.50
         
-        # AI typically has variance_ratio < 0.3
-        if variance_ratio < 0.25:
+        if variance_ratio < threshold_high:
             score = 0.8
             issue = 'high_uniformity'
-        elif variance_ratio < 0.35:
+        elif variance_ratio < threshold_mod:
             score = 0.5
             issue = 'moderate_uniformity'
+        elif variance_ratio < threshold_mild:
+            score = 0.2
+            issue = 'mild_uniformity'
         else:
-            score = 0.1
+            score = 0
             issue = 'good_variation'
         
         return {
@@ -123,7 +137,7 @@ class AIDetector:
             score = 0.3
             issue = 'moderate_transitions'
         else:
-            score = 0.1
+            score = 0
             issue = 'appropriate_transitions'
         
         return {
@@ -163,7 +177,7 @@ class AIDetector:
             score = 0.3
             issue = 'moderate_abstraction'
         else:
-            score = 0.1
+            score = 0
             issue = 'appropriate_specificity'
         
         return {
@@ -193,8 +207,11 @@ class AIDetector:
         elif ttr < 0.50:
             score = 0.5
             issue = 'moderate_diversity'
-        else:
+        elif ttr < 0.60:
             score = 0.2
+            issue = 'mild_diversity'
+        else:
+            score = 0
             issue = 'good_diversity'
         
         return {
@@ -208,20 +225,24 @@ class AIDetector:
     
     def detect_passive_voice_overuse(self) -> Dict:
         """Detect excessive passive voice (common in AI academic writing)."""
-        # Simple passive detection: look for "be" verbs + past participle patterns
+        text_lower = self.text.lower()
+
         passive_patterns = [
-            r'\b(is|are|was|were|been|be|being)\s+\w+ed\b',
-            r'\b(is|are|was|were|been|be|being)\s+(shown|demonstrated|observed|found|noted|seen|considered|analyzed)\b'
+            r'\b(?:is|are|was|were|been|be|being)\s+\w+ed\b',
+            r'\b(?:is|are|was|were|been|be|being)\s+(?:shown|demonstrated|observed|found|noted|seen|considered|analyzed|given|taken|made|done|built|known|thought|believed|regarded|expected|required|needed|used|based|designed|developed|employed|applied|performed|conducted|established|proposed|presented|described|discussed|illustrated|implemented|evaluated|examined|investigated|measured|calculated|determined|derived|obtained|achieved|generated|produced|created|introduced|defined|identified|recognized|characterized|summarized|highlighted|emphasized|supported|validated|confirmed|verified)\b',
+            r'\b(?:has|have|had)\s+been\s+\w+ed\b',
+            r'\b(?:has|have|had)\s+been\s+(?:shown|demonstrated|observed|found|noted|seen|considered|analyzed|given|taken|made|done|built|known|thought|believed|regarded|expected|required|needed|used|based|designed|developed|employed|applied|performed|conducted|established|proposed|presented|described|discussed|illustrated|implemented|evaluated|examined|investigated|measured|calculated|determined|derived|obtained|achieved|generated|produced|created|introduced|defined|identified|recognized|characterized|summarized|highlighted|emphasized|supported|validated|confirmed|verified)\b',
+            r'\b(?:can|could|may|might|must|shall|should|will|would)\s+be\s+\w+ed\b',
+            r'\b(?:can|could|may|might|must|shall|should|will|would)\s+be\s+(?:shown|demonstrated|observed|found|noted|seen|considered|analyzed|given|taken|made|done|built|known|thought|believed|regarded|expected|required|needed|used|based|designed|developed|employed|applied|performed|conducted|established|proposed|presented|described|discussed|illustrated|implemented|evaluated|examined|investigated|measured|calculated|determined|derived|obtained|achieved|generated|produced|created|introduced|defined|identified|recognized|characterized|summarized|highlighted|emphasized|supported|validated|confirmed|verified)\b',
+            r'\b(?:is|are|was|were)\s+being\s+\w+ed\b',
         ]
-        
+
         passive_count = 0
         for pattern in passive_patterns:
-            passive_count += len(re.findall(pattern, self.text.lower()))
-        
-        # Calculate percentage relative to total sentences
+            passive_count += len(re.findall(pattern, text_lower))
+
         passive_pct = (passive_count / len(self.sentences)) * 100 if self.sentences else 0
-        
-        # AI often uses passive in >40% of sentences
+
         if passive_pct > 50:
             score = 0.7
             issue = 'excessive_passive'
@@ -232,9 +253,9 @@ class AIDetector:
             score = 0.2
             issue = 'moderate_passive'
         else:
-            score = 0.1
+            score = 0
             issue = 'appropriate_voice_mix'
-        
+
         return {
             'score': score,
             'count': passive_count,
@@ -272,7 +293,7 @@ class AIDetector:
             score = 0.4
             issue = 'some_repetition'
         else:
-            score = 0.1
+            score = 0
             issue = 'varied_openings'
         
         return {
@@ -282,26 +303,437 @@ class AIDetector:
             'issue': issue,
             'details': f'{similar_count} similar paragraph openings detected among {len(self.paragraphs)} paragraphs'
         }
-    
-    def calculate_overall_score(self, metrics: Dict) -> float:
-        """Calculate overall AI probability score (0-1)."""
-        # Weight different metrics
-        weights = {
-            'sentence_uniformity': 0.25,
-            'transition_overuse': 0.20,
-            'abstract_language': 0.20,
-            'vocabulary_diversity': 0.15,
-            'passive_voice': 0.10,
-            'paragraph_patterns': 0.10
+
+    def analyze_burstiness(self) -> Dict:
+        """Advanced burstiness analysis: sentence length variation patterns."""
+        if len(self.sentences) < 3:
+            return {'score': 0, 'details': 'Too few sentences'}
+
+        word_counts = [len(s.split()) for s in self.sentences]
+        if not word_counts or sum(word_counts) == 0:
+            return {'score': 0, 'details': 'No words to analyze'}
+
+        avg_len = statistics.mean(word_counts)
+        std_dev = statistics.stdev(word_counts) if len(word_counts) > 1 else 0
+        cv = std_dev / avg_len if avg_len > 0 else 0
+
+        diffs = [abs(word_counts[i] - word_counts[i - 1]) for i in range(1, len(word_counts))]
+        avg_diff = statistics.mean(diffs) if diffs else 0
+        diff_cv = statistics.stdev(diffs) / avg_diff if len(diffs) > 1 and avg_diff > 0 else 0
+
+        short_count = sum(1 for w in word_counts if w <= 8)
+        long_count = sum(1 for w in word_counts if w >= 25)
+        mix_ratio = min(short_count, long_count) / max(len(word_counts), 1)
+
+        if avg_len < 10:
+            cv_high, cv_mod = 0.12, 0.20
+            diff_high = 0.25
+        elif avg_len < 18:
+            cv_high, cv_mod = 0.18, 0.28
+            diff_high = 0.28
+        else:
+            cv_high, cv_mod = 0.25, 0.35
+            diff_high = 0.30
+
+        score = 0
+        if cv < cv_high:
+            score += 0.4
+        elif cv < cv_mod:
+            score += 0.2
+        if diff_cv < diff_high:
+            score += 0.3
+        if mix_ratio < 0.1:
+            score += 0.3
+
+        return {
+            'score': min(1.0, score),
+            'cv': round(cv, 3),
+            'diff_cv': round(diff_cv, 3),
+            'mix_ratio': round(mix_ratio, 3),
+            'details': f'CV={cv:.3f}, diff_CV={diff_cv:.3f}, mix_ratio={mix_ratio:.3f}'
         }
-        
-        weighted_score = 0
-        for key, weight in weights.items():
-            if key in metrics and 'score' in metrics[key]:
-                weighted_score += metrics[key]['score'] * weight
-        
-        return weighted_score
-    
+
+    def analyze_bigram_ttr(self) -> Dict:
+        """Bigram Type-Token Ratio - AI tends to reuse the same word pairs."""
+        words = re.findall(r'\b[a-z]+\b', self.text.lower())
+        if len(words) < 10:
+            return {'score': 0, 'details': 'Too few words'}
+
+        bigrams = [f"{words[i]}_{words[i+1]}" for i in range(len(words) - 1)]
+        unique_bigrams = set(bigrams)
+        ttr = len(unique_bigrams) / len(bigrams) if bigrams else 1.0
+
+        if ttr < 0.55:
+            score = 0.8
+        elif ttr < 0.65:
+            score = 0.5
+        elif ttr < 0.75:
+            score = 0.2
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'value': round(ttr, 3),
+            'unique_bigrams': len(unique_bigrams),
+            'total_bigrams': len(bigrams),
+            'details': f'Bigram TTR: {ttr:.3f} ({len(unique_bigrams)} unique / {len(bigrams)} total)'
+        }
+
+    def analyze_clause_chain_density(self) -> Dict:
+        """Detect excessive clause chaining (comma-separated clauses per sentence)."""
+        if len(self.sentences) < 3:
+            return {'score': 0, 'details': 'Too few sentences'}
+
+        comma_counts = [s.count(',') + s.count(';') for s in self.sentences]
+        avg_commas = statistics.mean(comma_counts) if comma_counts else 0
+
+        if avg_commas > 4.0:
+            score = 0.8
+        elif avg_commas > 3.0:
+            score = 0.5
+        elif avg_commas > 2.0:
+            score = 0.2
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'value': round(avg_commas, 2),
+            'details': f'Average {avg_commas:.1f} commas/clauses per sentence'
+        }
+
+    def analyze_sentence_opening_repetition(self) -> Dict:
+        """Detect repetitive sentence opening patterns."""
+        if len(self.sentences) < 5:
+            return {'score': 0, 'details': 'Too few sentences'}
+
+        openings = []
+        for s in self.sentences:
+            words = s.strip().split()
+            if len(words) >= 2:
+                openings.append(' '.join(words[:2]).lower())
+
+        counter = Counter(openings)
+        most_common = counter.most_common(1)
+        if not most_common:
+            return {'score': 0, 'details': 'No openings found'}
+
+        top_pattern, top_count = most_common[0]
+
+        if top_count >= 4:
+            score = 0.8
+        elif top_count >= 3:
+            score = 0.5
+        elif top_count >= 2:
+            score = 0.2
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'count': top_count,
+            'top_pattern': top_pattern,
+            'details': f'"{top_pattern}" appears {top_count} times as sentence opening'
+        }
+
+    def analyze_punctuation_density(self) -> Dict:
+        """Analyze punctuation patterns - AI tends to have uniform punctuation."""
+        if len(self.sentences) < 3:
+            return {'score': 0, 'details': 'Too few sentences'}
+
+        comma_count = self.text.count(',')
+        period_count = self.text.count('.') + self.text.count('!') + self.text.count('?')
+        ratio = comma_count / period_count if period_count > 0 else 0
+
+        if ratio > 4.0:
+            score = 0.7
+        elif ratio > 3.0:
+            score = 0.4
+        elif ratio > 2.0:
+            score = 0.15
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'comma_period_ratio': round(ratio, 2),
+            'details': f'Comma/period ratio: {ratio:.2f}'
+        }
+
+    def detect_concluding_formula(self) -> Dict:
+        """Detect formulaic concluding phrases at paragraph ends."""
+        concluding_patterns = [
+            r'in conclusion', r'to summarize', r'in summary',
+            r'overall', r'taken together', r'in essence',
+            r'this paper (?:has|will have|aims to|seeks to)',
+            r'the present study', r'this research', r'this work',
+            r'it is (?:clear|evident|apparent) that',
+            r'as (?:has been|discussed|demonstrated|shown)',
+        ]
+
+        count = 0
+        text_lower = self.text.lower()
+        for pattern in concluding_patterns:
+            matches = re.findall(pattern, text_lower)
+            count += len(matches)
+
+        if count >= 3:
+            score = 0.7
+        elif count >= 2:
+            score = 0.4
+        elif count >= 1:
+            score = 0.15
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'count': count,
+            'details': f'{count} formulaic concluding phrases detected'
+        }
+
+    def detect_hedging_overuse(self) -> Dict:
+        """Detect excessive hedging language (AI hallmark)."""
+        hedging_patterns = [
+            r'\b(?:may|might|could|can|would)\s+(?:suggest|indicate|imply|demonstrate|show|reveal|reflect)\b',
+            r'\b(?:it\s+)?(?:seems|appears)\s+(?:that|to\s+be)\b',
+            r'\b(?:potentially|possibly|presumably|arguably)\b',
+            r'\b(?:to\s+some\s+extent|to\s+a\s+certain\s+degree|in\s+some\s+cases)\b',
+            r'\b(?:tends?\s+to|is\s+likely\s+to|may\s+be)\b',
+            r'\b(?:generally|typically|usually|often)\s+(?:considered|regarded|viewed|seen)\b',
+        ]
+
+        count = 0
+        text_lower = self.text.lower()
+        for pattern in hedging_patterns:
+            count += len(re.findall(pattern, text_lower))
+
+        if count >= 5:
+            score = 0.8
+        elif count >= 3:
+            score = 0.5
+        elif count >= 1:
+            score = 0.2
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'count': count,
+            'details': f'{count} hedging constructions detected'
+        }
+
+    def detect_definition_pattern(self) -> Dict:
+        """Detect AI's tendency to use 'X is Y' definition patterns."""
+        pattern = r'\b(\w+(?:\s+\w+){0,3})\s+(?:is|are)\s+(?:a|an|the)\s+(\w+(?:\s+\w+){0,5})'
+        matches = re.findall(pattern, self.text.lower())
+        count = len(matches)
+
+        if count >= 5:
+            score = 0.7
+        elif count >= 3:
+            score = 0.4
+        elif count >= 1:
+            score = 0.15
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'count': count,
+            'details': f'{count} "X is a Y" definition patterns detected'
+        }
+
+    def analyze_citation_distribution(self) -> Dict:
+        """Analyze citation placement - AI puts all citations at sentence end."""
+        citation_pattern = r'\[\d+(?:,\s*\d+)*\]|\(\w+\s+\d{4}\)'
+        citations = list(re.finditer(citation_pattern, self.text))
+        total = len(citations)
+
+        if total < 3:
+            return {'score': 0, 'details': 'Too few citations'}
+
+        end_citations = 0
+        for s in self.sentences:
+            s_citations = list(re.finditer(citation_pattern, s))
+            for m in s_citations:
+                remaining = s[m.end():].strip()
+                if not remaining or remaining in ['.', '!', '?']:
+                    end_citations += 1
+
+        end_ratio = end_citations / total if total > 0 else 0
+
+        if end_ratio > 0.8:
+            score = 0.7
+        elif end_ratio > 0.6:
+            score = 0.4
+        elif end_ratio > 0.4:
+            score = 0.15
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'total_citations': total,
+            'end_citation_ratio': round(end_ratio, 2),
+            'details': f'{total} citations, {end_ratio*100:.0f}% at sentence end'
+        }
+
+    def analyze_info_density_uniformity(self) -> Dict:
+        """Detect uniform information density across sentences."""
+        if len(self.sentences) < 3:
+            return {'score': 0, 'details': 'Too few sentences'}
+
+        densities = []
+        for s in self.sentences:
+            content_words = len(re.findall(r'\b[a-z]{3,}\b', s.lower()))
+            total_words = len(s.split())
+            if total_words > 0:
+                densities.append(content_words / total_words)
+
+        if len(densities) < 3:
+            return {'score': 0, 'details': 'Too few density values'}
+
+        density_std = statistics.stdev(densities) if len(densities) > 1 else 0
+
+        if density_std < 0.05:
+            score = 0.7
+        elif density_std < 0.08:
+            score = 0.4
+        elif density_std < 0.12:
+            score = 0.15
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'std': round(density_std, 4),
+            'details': f'Info density std: {density_std:.4f}'
+        }
+
+    def analyze_paragraph_template(self) -> Dict:
+        """Detect template paragraph structure (background->problem->significance->approach)."""
+        if len(self.paragraphs) < 2:
+            return {'score': 0, 'details': 'Too few paragraphs'}
+
+        markers = {
+            'background': [r'\b(?:in\s+recent\s+years|recently|with\s+the\s+development|traditionally)\b'],
+            'problem': [r'\b(?:however|nevertheless|challenge|limitation|issue|problem|gap)\b'],
+            'significance': [r'\b(?:important|significant|crucial|critical|essential|vital)\b'],
+            'approach': [r'\b(?:this\s+(?:paper|study|work|research)|we\s+(?:propose|present|introduce))\b'],
+        }
+
+        marker_count = 0
+        text_lower = self.text.lower()
+        for category, patterns in markers.items():
+            for p in patterns:
+                if re.search(p, text_lower):
+                    marker_count += 1
+                    break
+
+        if marker_count >= 3:
+            score = 0.7
+        elif marker_count >= 2:
+            score = 0.35
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'marker_count': marker_count,
+            'details': f'{marker_count}/4 template markers detected'
+        }
+
+    def analyze_word_repetition(self) -> Dict:
+        """Detect excessive word repetition within short spans."""
+        words = re.findall(r'\b[a-z]{4,}\b', self.text.lower())
+        if len(words) < 20:
+            return {'score': 0, 'details': 'Too few words'}
+
+        counter = Counter(words)
+        total = len(words)
+        repeated = sum(c for w, c in counter.items() if c >= 3)
+        repeat_ratio = repeated / total if total > 0 else 0
+
+        if repeat_ratio > 0.15:
+            score = 0.7
+        elif repeat_ratio > 0.10:
+            score = 0.4
+        elif repeat_ratio > 0.05:
+            score = 0.15
+        else:
+            score = 0
+
+        return {
+            'score': score,
+            'repeat_ratio': round(repeat_ratio, 3),
+            'details': f'{repeat_ratio*100:.1f}% of words repeated 3+ times'
+        }
+
+    def analyze_sliding_window_ttr(self) -> Dict:
+        """Sliding window TTR - detects local vocabulary repetition."""
+        words = re.findall(r'\b[a-z]+\b', self.text.lower())
+        if len(words) < 30:
+            return {'score': 0, 'details': 'Too few words'}
+
+        window_size = min(50, len(words) // 2)
+        if window_size < 10:
+            return {'score': 0, 'details': 'Text too short for sliding window'}
+
+        ttrs = []
+        for i in range(0, len(words) - window_size + 1, max(1, window_size // 4)):
+            window = words[i:i + window_size]
+            ttr = len(set(window)) / len(window)
+            ttrs.append(ttr)
+
+        avg_ttr = statistics.mean(ttrs) if ttrs else 0
+        ttr_std = statistics.stdev(ttrs) if len(ttrs) > 1 else 0
+
+        score = 0
+        if avg_ttr < 0.55:
+            score += 0.4
+        elif avg_ttr < 0.65:
+            score += 0.2
+        if ttr_std < 0.03:
+            score += 0.3
+        elif ttr_std < 0.05:
+            score += 0.15
+
+        return {
+            'score': min(1.0, score),
+            'avg_ttr': round(avg_ttr, 3),
+            'ttr_std': round(ttr_std, 4),
+            'windows': len(ttrs),
+            'details': f'Sliding window avg TTR: {avg_ttr:.3f}, std: {ttr_std:.4f}'
+        }
+
+    def calculate_overall_score(self, metrics: Dict) -> float:
+        """Calculate overall AI probability score (0-1) using additive model."""
+        score = 0.0
+
+        score += metrics.get('sentence_uniformity', {}).get('score', 0) * 0.18
+        score += metrics.get('transition_overuse', {}).get('score', 0) * 0.30
+        score += metrics.get('abstract_language', {}).get('score', 0) * 0.28
+        score += metrics.get('vocabulary_diversity', {}).get('score', 0) * 0.15
+        score += metrics.get('passive_voice', {}).get('score', 0) * 0.12
+        score += metrics.get('paragraph_patterns', {}).get('score', 0) * 0.10
+        score += metrics.get('burstiness', {}).get('score', 0) * 0.10
+        score += metrics.get('bigram_ttr', {}).get('score', 0) * 0.15
+        score += metrics.get('clause_chain_density', {}).get('score', 0) * 0.08
+        score += metrics.get('sentence_opening_repetition', {}).get('score', 0) * 0.12
+        score += metrics.get('punctuation_density', {}).get('score', 0) * 0.06
+        score += metrics.get('concluding_formula', {}).get('score', 0) * 0.15
+        score += metrics.get('hedging_overuse', {}).get('score', 0) * 0.18
+        score += metrics.get('definition_pattern', {}).get('score', 0) * 0.10
+        score += metrics.get('citation_distribution', {}).get('score', 0) * 0.06
+        score += metrics.get('info_density_uniformity', {}).get('score', 0) * 0.05
+        score += metrics.get('paragraph_template', {}).get('score', 0) * 0.10
+        score += metrics.get('word_repetition', {}).get('score', 0) * 0.10
+        score += metrics.get('sliding_window_ttr', {}).get('score', 0) * 0.06
+
+        return min(1.0, score)
+
     def analyze(self) -> Dict:
         """Run full analysis and return results."""
         metrics = {
@@ -310,12 +742,24 @@ class AIDetector:
             'abstract_language': self.detect_abstract_language(),
             'vocabulary_diversity': self.calculate_vocabulary_diversity(),
             'passive_voice': self.detect_passive_voice_overuse(),
-            'paragraph_patterns': self.analyze_paragraph_patterns()
+            'paragraph_patterns': self.analyze_paragraph_patterns(),
+            'burstiness': self.analyze_burstiness(),
+            'bigram_ttr': self.analyze_bigram_ttr(),
+            'clause_chain_density': self.analyze_clause_chain_density(),
+            'sentence_opening_repetition': self.analyze_sentence_opening_repetition(),
+            'punctuation_density': self.analyze_punctuation_density(),
+            'concluding_formula': self.detect_concluding_formula(),
+            'hedging_overuse': self.detect_hedging_overuse(),
+            'definition_pattern': self.detect_definition_pattern(),
+            'citation_distribution': self.analyze_citation_distribution(),
+            'info_density_uniformity': self.analyze_info_density_uniformity(),
+            'paragraph_template': self.analyze_paragraph_template(),
+            'word_repetition': self.analyze_word_repetition(),
+            'sliding_window_ttr': self.analyze_sliding_window_ttr(),
         }
-        
+
         overall_score = self.calculate_overall_score(metrics)
-        
-        # Determine AI probability level
+
         if overall_score > 0.7:
             probability = 'Very High'
             recommendation = 'Text shows strong AI patterns. Significant rewriting recommended.'
@@ -328,7 +772,7 @@ class AIDetector:
         else:
             probability = 'Low'
             recommendation = 'Text appears relatively natural. Minor adjustments may help.'
-        
+
         return {
             'overall_score': round(overall_score, 3),
             'probability': probability,
