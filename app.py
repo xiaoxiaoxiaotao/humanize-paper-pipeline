@@ -3,6 +3,7 @@ import openai
 import re
 import sys
 import os
+import time
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 try:
@@ -118,10 +119,10 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     }
 
     tone_rules_zh = {
-        "学术书面 (Formal Academic)": "【风格指令】：纯正客观的学术书面书写。使用高度严谨的书面语，【绝对禁止】将学术文本口语化。绝不使用"算是"、"看上去不错"等非正式表达，确保专业深度。但注意：学术严谨不等于堆砌对冲词，不要为了显得"谨慎"而反复使用"似乎"、"可能表明"、"在一定程度上"等——这恰恰是AI改写的典型痕迹。",
-        "学术演讲 (Academic Presentation)": "【风格指令】：学术汇报/答辩演讲口吻。语言依然专业且保留核心术语，但句式长短更适宜讲述。允许出现"我们发现"、"这说明"等更具现场感的用语，避免过长的套娃式从句。不要堆砌对冲词。",
+        "学术书面 (Formal Academic)": "【风格指令】：纯正客观的学术书面书写。使用高度严谨的书面语，【绝对禁止】将学术文本口语化。绝不使用\"算是\"、\"看上去不错\"等非正式表达，确保专业深度。但注意：学术严谨不等于堆砌对冲词，不要为了显得\"谨慎\"而反复使用\"似乎\"、\"可能表明\"、\"在一定程度上\"等——这恰恰是AI改写的典型痕迹。",
+        "学术演讲 (Academic Presentation)": "【风格指令】：学术汇报/答辩演讲口吻。语言依然专业且保留核心术语，但句式长短更适宜讲述。允许出现\"我们发现\"、\"这说明\"等更具现场感的用语，避免过长的套娃式从句。不要堆砌对冲词。",
         "一般书面 (General Written)": "【风格指令】：标准的书面/科普表达。去除晦涩难懂的学术词语与大词，面向一般受众解答，语句通顺流畅，不过度堆砌名词，偏向技术博客或新闻报道的流畅质感。",
-        "口语化 (Colloquial)": "【风格指令】：高度口语化与对话式的交流表达。使用通俗易懂的大白话、非正式用语，可以加入一些日常感情色彩词（如"算是"、"其实"、"看上去不错"），完全打破学术的严肃与刻板。"
+        "口语化 (Colloquial)": "【风格指令】：高度口语化与对话式的交流表达。使用通俗易懂的大白话、非正式用语，可以加入一些日常感情色彩词（如\"算是\"、\"其实\"、\"看上去不错\"），完全打破学术的严肃与刻板。"
     }
 
     extra_tone_en = tone_rules_en.get(tone, tone_rules_en["学术书面 (Formal Academic)"])
@@ -215,6 +216,26 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     ai_score = 100
     ai_details = None
 
+    def make_api_call_with_retry(callable_obj, max_retries=3, initial_delay=1.0):
+        """带自动重试的 API 调用包装器"""
+        retry_count = 0
+        delay = initial_delay
+        last_exception = None
+        while retry_count <= max_retries:
+            try:
+                return callable_obj(), None
+            except (openai.APIConnectionError, openai.RateLimitError, openai.APIError) as e:
+                last_exception = e
+                retry_count += 1
+                if retry_count > max_retries:
+                    break
+                st.warning(f"API 调用失败 (第 {retry_count}/{max_retries} 次): {str(e)}，{delay:.1f}秒后重试...")
+                time.sleep(delay)
+                delay *= 2
+            except openai.AuthenticationError as e:
+                return None, f"API认证失败: API Key 无效或已过期，请检查。详情: {str(e)}"
+        return None, f"API调用失败，已重试 {max_retries} 次。末次错误: {str(last_exception)}"
+
     try:
         for round_num in range(1, MAX_ROUNDS + 1):
             if round_num == 1:
@@ -222,14 +243,20 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
             else:
                 st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: AI分数 {ai_score} > {AI_THRESHOLD}，触发定点消除...")
 
-            response = client.chat.completions.create(
-                model=model_id,
-                messages=messages,
-                temperature=0.75 + (round_num - 1) * 0.05,
-                frequency_penalty=0.3 + (round_num - 1) * 0.05,
-                presence_penalty=0.2 + (round_num - 1) * 0.05
-            )
-            revised = response.choices[0].message.content
+            def make_round_call():
+                return client.chat.completions.create(
+                    model=model_id,
+                    messages=messages,
+                    temperature=0.75 + (round_num - 1) * 0.05,
+                    frequency_penalty=0.3 + (round_num - 1) * 0.05,
+                    presence_penalty=0.2 + (round_num - 1) * 0.05
+                )
+
+            response_obj, error_msg = make_api_call_with_retry(make_round_call)
+            if error_msg:
+                return error_msg, 100
+
+            revised = response_obj.choices[0].message.content
             messages.append({"role": "assistant", "content": revised})
 
             ai_score, ai_details = calculate_ai_rate(revised, lang)
@@ -270,6 +297,14 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 
         return revised, ai_score
 
+    except openai.APIConnectionError as e:
+        return f"API连接失败: 无法连接到 {api_base}，请检查 Base URL 和网络连接。详情: {str(e)}", 100
+    except openai.AuthenticationError as e:
+        return f"API认证失败: API Key 无效或已过期，请检查。详情: {str(e)}", 100
+    except openai.RateLimitError as e:
+        return f"API速率限制: 请求过于频繁，请稍后重试。详情: {str(e)}", 100
+    except openai.APIError as e:
+        return f"API服务端错误: {str(e)}", 100
     except Exception as e:
         return f"API调用出错: {str(e)}", 100
 
