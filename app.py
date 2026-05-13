@@ -103,11 +103,496 @@ def _fallback_ai_detection(text, lang):
     return score
 
 
+# ============================================================
+# 每项检测指标的独立阈值配置
+# ============================================================
+
+CHINESE_METRIC_THRESHOLDS = {
+    'sentence_length_distribution': {'max_score': 8, 'description': '句长分布'},
+    'paragraph_structure_similarity': {'max_score': 6, 'description': '段落结构相似度'},
+    'info_density_distribution': {'max_score': 6, 'description': '信息密度分布'},
+    'transition_word_distribution': {'max_score': 8, 'description': '连接词分布'},
+    'sentence_uniformity': {'max_score': 8, 'description': '句式统一性'},
+    'transition_overuse': {'max_score': 8, 'max_count': 5, 'description': '过渡词滥用'},
+    'abstract_language': {'max_score': 6, 'max_count': 3, 'description': '抽象语言'},
+    'sentence_opening_repetition': {'max_score': 6, 'description': '句首重复'},
+    'templates': {'max_score': 6, 'max_count': 1, 'description': '模板句式'},
+    'word_burstiness': {'max_score': 6, 'description': '词汇突发性'},
+    'over_hedging': {'max_score': 6, 'max_count': 2, 'description': '过度对冲'},
+    'bigram_ttr': {'max_score': 6, 'description': '二元组多样性'},
+    'clause_chain_density': {'max_score': 6, 'description': '从句链密度'},
+    'idiom_overuse': {'max_score': 6, 'max_count': 3, 'description': '成语堆砌'},
+    'punctuation_density': {'max_score': 5, 'description': '标点密度'},
+    'concluding_formula': {'max_score': 5, 'max_count': 1, 'description': '总结套话'},
+    'suizhe_template': {'max_score': 6, 'max_count': 1, 'description': '"随着/基于"模板'},
+    'paragraph_template': {'max_score': 6, 'description': '段落模板化'},
+    'definition_pattern': {'max_score': 6, 'max_count': 1, 'description': '"是...的"定义式'},
+    'citation_distribution': {'max_score': 5, 'description': '引用分布'},
+}
+
+ENGLISH_METRIC_THRESHOLDS = {
+    'sentence_uniformity': {'max_score': 8, 'description': 'Sentence uniformity'},
+    'transition_overuse': {'max_score': 10, 'description': 'Transition overuse'},
+    'abstract_language': {'max_score': 8, 'description': 'Abstract language'},
+    'vocabulary_diversity': {'max_score': 8, 'description': 'Vocabulary diversity'},
+    'passive_voice': {'max_score': 8, 'description': 'Passive voice'},
+    'paragraph_patterns': {'max_score': 6, 'description': 'Paragraph patterns'},
+    'burstiness': {'max_score': 4, 'description': 'Burstiness'},
+    'bigram_ttr': {'max_score': 6, 'description': 'Bigram TTR'},
+    'clause_chain': {'max_score': 5, 'description': 'Clause chain density'},
+    'sentence_openings': {'max_score': 6, 'description': 'Sentence openings'},
+    'punctuation': {'max_score': 5, 'description': 'Punctuation pattern'},
+    'concluding_formula': {'max_score': 6, 'description': 'Concluding formula'},
+    'hedging': {'max_score': 8, 'description': 'Hedging language'},
+    'word_repetition': {'max_score': 6, 'description': 'Word repetition'},
+}
+
+
+def check_metric_pass(metric_data: dict, threshold: dict) -> bool:
+    """检查单个检测指标是否通过阈值"""
+    score = metric_data.get('score', 0)
+    if score > threshold['max_score']:
+        return False
+    if 'max_count' in threshold:
+        count = metric_data.get('count', 0)
+        if count > threshold['max_count']:
+            return False
+    return True
+
+
+def get_failing_metrics(ai_details: dict, thresholds: dict) -> list:
+    """获取所有未通过阈值的检测指标列表"""
+    failing = []
+    if not ai_details or 'metrics' not in ai_details:
+        return failing
+    metrics = ai_details['metrics']
+    for metric_key, threshold_info in thresholds.items():
+        metric_data = metrics.get(metric_key, {})
+        if not check_metric_pass(metric_data, threshold_info):
+            score = metric_data.get('score', 0)
+            details_str = metric_data.get('details', '')
+            failing.append({
+                'key': metric_key,
+                'description': threshold_info['description'],
+                'current_score': score,
+                'max_score': threshold_info['max_score'],
+                'details': details_str,
+                'data': metric_data,
+            })
+    return failing
+
+
+def get_passing_metrics(ai_details: dict, thresholds: dict) -> list:
+    """获取所有已通过阈值的检测指标列表"""
+    passing = []
+    if not ai_details or 'metrics' not in ai_details:
+        return passing
+    metrics = ai_details['metrics']
+    for metric_key, threshold_info in thresholds.items():
+        metric_data = metrics.get(metric_key, {})
+        if check_metric_pass(metric_data, threshold_info):
+            passing.append({
+                'key': metric_key,
+                'description': threshold_info['description'],
+                'data': metric_data,
+            })
+    return passing
+
+
+def calculate_quality_metrics(text: str, lang: str) -> dict:
+    """
+    计算文本质量指标，用于跟踪质量变化
+    
+    Returns:
+        dict with quality metrics
+    """
+    if lang == "English":
+        words = re.findall(r'\b[a-z]+\b', text.lower())
+        sentences = [s for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+        word_count = len(words)
+        sent_count = len(sentences) if sentences else 1
+        unique_words = len(set(words))
+        avg_sent_len = word_count / sent_count if sent_count > 0 else 0
+        ttr = unique_words / word_count if word_count > 0 else 0
+        return {
+            'word_count': word_count,
+            'sentence_count': sent_count,
+            'avg_sentence_length': round(avg_sent_len, 1),
+            'ttr': round(ttr, 3),
+            'unique_words': unique_words,
+        }
+    else:
+        chars = re.findall(r'[\u4e00-\u9fa5]', text)
+        total_chars = len(chars)
+        unique_chars = len(set(chars))
+        sentences = [s.strip() for s in re.split(r'[。！？!?]+', text) if s.strip()]
+        sent_count = len(sentences) if sentences else 1
+        avg_sent_len = total_chars / sent_count if sent_count > 0 else 0
+        char_diversity = unique_chars / total_chars if total_chars > 0 else 0
+        total_len = len(text)
+        return {
+            'char_count': total_chars,
+            'sentence_count': sent_count,
+            'avg_sentence_length': round(avg_sent_len, 1),
+            'char_diversity': round(char_diversity, 4),
+            'unique_chars': unique_chars,
+            'total_length': total_len,
+        }
+
+
+def check_quality_degradation(original: dict, current: dict) -> str:
+    """
+    检查文本质量是否显著下降
+    
+    Returns:
+        warning message if degraded, empty string otherwise
+    """
+    warnings = []
+
+    if 'total_length' in original and 'total_length' in current:
+        length_ratio = current['total_length'] / original['total_length'] if original['total_length'] > 0 else 1.0
+        if length_ratio < 0.65:
+            warnings.append(f"文本长度大幅缩减（原{original['total_length']}字→现{current['total_length']}字），需保留完整信息量")
+        elif length_ratio < 0.8:
+            warnings.append(f"文本长度有所缩减（原{original['total_length']}字→现{current['total_length']}字），注意不要遗漏实质性内容")
+
+    if 'char_diversity' in original and 'char_diversity' in current:
+        diversity_drop = original['char_diversity'] - current['char_diversity']
+        if diversity_drop > 0.02:
+            warnings.append(f"用字多样性下降（{original['char_diversity']:.4f}→{current['char_diversity']:.4f}），避免过度简化词汇")
+
+    if 'avg_sentence_length' in original and 'avg_sentence_length' in current:
+        orig_avg = original['avg_sentence_length']
+        curr_avg = current['avg_sentence_length']
+        if curr_avg < orig_avg * 0.6:
+            warnings.append(f"平均句长从{orig_avg}字降至{curr_avg}字，句式过于碎片化，需保持适当的长句")
+
+    if 'ttr' in original and 'ttr' in current:
+        ttr_drop = original['ttr'] - current['ttr']
+        if ttr_drop > 0.08:
+            warnings.append(f"词汇多样性下降（TTR: {original['ttr']:.3f}→{current['ttr']:.3f}），注意丰富用词")
+
+    return "；".join(warnings)
+
+
+def get_quality_preservation_prompt(is_en: bool) -> str:
+    """返回质量保持提示"""
+    if is_en:
+        return (
+            "[Quality Preservation]: The rewriting has degraded text quality significantly. "
+            "Please restore the original information content while maintaining the AI pattern fixes. "
+            "Ensure the text length is comparable to the original and vocabulary diversity is preserved."
+        )
+    return (
+        "【质量保持警告】: 上一轮改写导致文本质量下降。请在修复AI痕迹的同时，务必：\n"
+        "1. 恢复被删减的实质性内容（论点、数据、方法、结论）\n"
+        "2. 保持原文长度，不得大幅缩写\n"
+        "3. 保持用词多样性，不要过度简化\n"
+        "4. 保持适当的句长变化，不要全部切成短句\n"
+        "5. 确保学术信息的完整性和准确性"
+    )
+
+
+# ============================================================
+# 中文检测指标 -> 可解释反馈 映射表
+# ============================================================
+
+CHINESE_METRIC_FEEDBACK = {
+    'sentence_length_distribution': (
+        "【句长分布过于集中】检测到大量句子长度集中在15-25字区间，且变异系数偏低。"
+        "这是AI生成的典型特征——句长分布太均匀。\n"
+        "修复方案：刻意制造句长落差。插入若干极短句（5-10字，如'这一结果令人意外。'"
+        "'原因何在？'），同时保留或合并若干长句（40-60字）。让最短句与最长句之间"
+        "形成明显落差。"
+    ),
+    'paragraph_structure_similarity': (
+        "【段落结构高度相似】各段落在句子数量、平均长度、过渡词使用模式上过于一致。"
+        "人类写作时各段落结构天然会有差异。\n"
+        "修复方案：打乱段落节奏。有的段落用3句短促有力的句子，有的段落用8句层层递进。"
+        "不要每个段落都用'背景→分析→结论'三板斧。"
+    ),
+    'info_density_distribution': (
+        "【信息密度过于均匀】每句话的信息密度（汉字占比）稳定在65%-75%区间，"
+        "这是AI在刻意控制信息密度的痕迹。\n"
+        "修复方案：制造信息密度起伏。有些句子密集堆叠术语和数字（信息密度>80%），"
+        "有些句子穿插口语化过渡或评论（信息密度<60%）。"
+    ),
+    'transition_word_distribution': (
+        "【连接词分布异常】连接词使用密度过高或分布过于均匀。"
+        "AI倾向于在每句话之间规律性地插入逻辑连接词。\n"
+        "修复方案：大幅删减显式连接词。用内容本身的逻辑顺序替代'因此'、'然而'、"
+        "'此外'。删掉一半以上的连接词，让上下文通过语义自然衔接。"
+    ),
+    'sentence_uniformity': (
+        "【句式过于统一】句子长度的变异系数过低，所有句子长度相近，"
+        "读起来节奏单一，缺少人类写作的起伏感。\n"
+        "修复方案：刻意打破均匀节奏。在连续几个中等长度句子之后，"
+        "插入一个短句（如'这很关键。'）或一个复杂长句（含多个分句和插入语）。"
+    ),
+    'transition_overuse': (
+        "【过渡词过度使用】检测到过多机械逻辑连接词"
+        "（如'首先、其次、最后、综上所述'等）。\n"
+        "修复方案：删除大部分显式过渡词。用段落间的自然逻辑推进代替编号式结构。"
+        "如果需要强调逻辑关系，使用更自然的表达方式。"
+    ),
+    'abstract_language': (
+        "【空泛套话过多】检测到大量抽象空泛的学术套话"
+        "（如'具有重要意义'、'发挥着重要作用'、'不可或缺'等）。\n"
+        "修复方案：将每个空泛表述替换为具体描述。不说'具有重要意义'，"
+        "而是说明'在X方面提升了Y%的效率'。每句空话都要有实质信息填充。"
+    ),
+    'sentence_opening_repetition': (
+        "【句首模式重复】多个句子的开头几字相同，"
+        "这是AI写作中常见的模板化痕迹。\n"
+        "修复方案：改写句首，避免连续两句用相同词开头。"
+        "可以使用主语提前、状语前置、疑问句、倒装等不同句式变换开头。"
+    ),
+    'templates': (
+        "【模板句式过多】检测到AI高频模板句式，"
+        "如'随着...的...'、'基于...的...'等。\n"
+        "修复方案：将这些模板拆解为自然表达。"
+        "'随着X的发展'改为'X发展之后'或'在X发展的背景下'。"
+        "'基于X的Y'改为'使用X进行Y'或'通过X实现Y'。"
+    ),
+    'word_burstiness': (
+        "【词汇突发性过低】各词汇的出现频率过于均匀，"
+        "缺少人类写作中某些词重复使用、某些词偶尔出现的自然分布。\n"
+        "修复方案：增加词汇使用的不均匀性。在相关段落中重复使用核心术语，"
+        "同时引入一些低频但精准的专业词汇。"
+    ),
+    'over_hedging': (
+        "【过度使用对冲词】检测到大量不确定性修饰语"
+        "（如'似乎'、'可能表明'、'在一定程度上'等）。"
+        "这是AI为避免绝对化表述而过度使用对冲策略的典型痕迹。\n"
+        "修复方案：将有数据支持的陈述改为确定性表述。"
+        "有数据支撑时直接说'结果表明'而非'结果似乎表明'。"
+        "仅在真正不确定的地方保留对冲，删减率应超过70%。"
+    ),
+    'bigram_ttr': (
+        "【二元组重复率过高】相邻汉字组合（bigram）的类型不够丰富，"
+        "说明用词搭配模式单一，词汇多样性不足。\n"
+        "修复方案：引入更多样化的词汇搭配。"
+        "替换高频出现的固定搭配，使用近义词、同义表达变换说法。"
+    ),
+    'clause_chain_density': (
+        "【从句链过密】单个句子包含过多逗号分隔的分句，"
+        "句法嵌套过深，这是AI长句生成的典型特征。\n"
+        "修复方案：将超长句拆分为2-3个独立的短句。"
+        "每个句子控制在2-3个分句以内。复杂逻辑关系用句号断开后重新组织。"
+    ),
+    'idiom_overuse': (
+        "【成语/四字词堆砌】检测到过多成语或四字格词组"
+        "（如'不可或缺'、'显而易见'、'日新月异'等）。"
+        "AI倾向于在学术文本中过度使用这类表达来填充字数。\n"
+        "修复方案：将多余的成语替换为平实具体的表述。"
+        "保留少量确实精准的成语，删减率应超过50%。"
+    ),
+    'punctuation_density': (
+        "【逗号/句号比过高】逗号数量远超句号，"
+        "说明单句内从句嵌套过多，缺少断句。\n"
+        "修复方案：增加句号使用频率。将长句中语义完整的部分独立成句。"
+        "目标是将逗号/句号比控制在2.5以下。"
+    ),
+    'concluding_formula': (
+        "【段末总结套话】检测到公式化的段落结尾"
+        "（如'综上所述'、'总而言之'、'由此可见'等）。"
+        "这是AI每段结尾必总结的机械习惯。\n"
+        "修复方案：删除所有公式化结尾词。让段落自然收束——"
+        "最后一句直接陈述结论或引出下文，不要加'总结帽子'。"
+    ),
+    'suizhe_template': (
+        "【知网级AI特征】检测到'随着...的...'或'基于...的...'模板句式。"
+        "这是知网3.0算法重点识别的AI指纹模式。\n"
+        "修复方案：立即替换这些句式。"
+        "'随着X的Y'→'X的Y，使得...'或'在X Y的背景下'。"
+        "'基于X的Y'→'使用X的Y'或'采用X进行Y'。"
+    ),
+    'paragraph_template': (
+        "【段落结构模板化】段落开头模式过于固定，"
+        "呈现出'背景→问题→意义→方案'的机械四段式结构。\n"
+        "修复方案：打乱段落结构。有的段落直接抛出问题，"
+        "有的段落先给结论再解释原因。避免每个段落都按照统一模板展开。"
+    ),
+    'definition_pattern': (
+        "【知网级AI特征】检测到'是...的...'定义式句式"
+        "（如'X是Y的重要基础'）。AI过度依赖这种判断句结构。\n"
+        "修复方案：将定义式改写为主动句或描述句。"
+        "'X是Y的重要基础'→'X为Y奠定了基础'或'Y依赖于X'。"
+        "避免连续使用'是...的'结构。"
+    ),
+    'citation_distribution': (
+        "【引用集中在句末】超过80%的引文出现在句子末尾，"
+        "这是AI写作的习惯——先写内容再补引用。\n"
+        "修复方案：将部分引用移到句中或句首。"
+        "如'[1]的研究表明...'或'根据[2]的方法，我们...'。"
+        "不要所有引用都放在句末括号里。"
+    ),
+}
+
+ENGLISH_METRIC_FEEDBACK = {
+    'sentence_uniformity': (
+        "[Sentence Uniformity]: Sentence lengths are too uniform. "
+        "AI text often has a consistent sentence length distribution. "
+        "Fix: Mix very short sentences (5-10 words) with long complex ones (30+ words). "
+        "Create a natural rhythm with varied sentence lengths."
+    ),
+    'transition_overuse': (
+        "[Transition Overuse]: Too many mechanical transition words detected "
+        "(e.g., 'moreover', 'furthermore', 'additionally', 'in conclusion'). "
+        "Fix: Remove most explicit transitions. Use implicit logical flow instead. "
+        "Keep only those that are absolutely necessary for clarity."
+    ),
+    'abstract_language': (
+        "[Abstract Language]: Excessive use of abstract placeholder phrases "
+        "(e.g., 'various aspects', 'plays an important role', 'in terms of'). "
+        "Fix: Replace each abstract phrase with specific, concrete content. "
+        "Instead of 'plays an important role', say what it actually does."
+    ),
+    'vocabulary_diversity': (
+        "[Low Vocabulary Diversity]: Type-Token Ratio is too low, "
+        "indicating repetitive word usage patterns typical of AI. "
+        "Fix: Introduce more varied vocabulary. Use synonyms and restructure "
+        "sentences to avoid repeating the same words frequently."
+    ),
+    'passive_voice': (
+        "[Passive Voice Overuse]: Excessive passive voice constructions. "
+        "AI text tends to overuse passive voice to sound 'academic'. "
+        "Fix: Convert some passive constructions to active voice. "
+        "Use 'We observed that' instead of 'It was observed that'."
+    ),
+    'paragraph_patterns': (
+        "[Paragraph Pattern Repetition]: Multiple paragraphs have similar "
+        "opening patterns or structures. "
+        "Fix: Vary how each paragraph starts. Some can start with a question, "
+        "some with a bold claim, others with a specific example."
+    ),
+    'burstiness': (
+        "[Low Burstiness]: Sentence length variation is insufficient. "
+        "Fix: Create more dramatic contrasts between sentence lengths. "
+        "Follow a long, detailed sentence with a short, punchy one."
+    ),
+    'bigram_ttr': (
+        "[Low Bigram Diversity]: Adjacent word pairs are too repetitive. "
+        "Fix: Vary word collocations and use more diverse phrasing patterns. "
+        "Avoid repeatedly using the same adjective-noun combinations."
+    ),
+    'clause_chain': (
+        "[Clause Chain Density]: Too many commas per sentence on average, "
+        "indicating overly complex sentence structures. "
+        "Fix: Break long sentences into shorter independent clauses. "
+        "Aim for average of 2 or fewer commas per sentence."
+    ),
+    'sentence_openings': (
+        "[Repetitive Sentence Openings]: Multiple sentences start with the "
+        "same word or phrase pattern. "
+        "Fix: Vary sentence openings. Use different grammatical structures: "
+        "adverbial phrases, gerunds, questions, or inverted word order."
+    ),
+    'punctuation': (
+        "[Punctuation Pattern]: Comma-to-period ratio is too high, "
+        "suggesting run-on sentences and complex clause chains. "
+        "Fix: Use more periods to create shorter, clearer sentences. "
+        "Break compound sentences into simpler structures."
+    ),
+    'concluding_formula': (
+        "[Concluding Formulas]: Detected formulaic concluding phrases "
+        "(e.g., 'in conclusion', 'to summarize', 'taken together'). "
+        "Fix: Remove all formulaic conclusions. Let paragraphs end naturally "
+        "with a substantive statement rather than a summary marker."
+    ),
+    'hedging': (
+        "[Excessive Hedging]: Too many hedging/qualifying phrases "
+        "(e.g., 'may suggest', 'appears to be', 'to some extent'). "
+        "Fix: Use more direct language when evidence supports it. "
+        "Reserve hedging only for genuinely uncertain claims."
+    ),
+    'word_repetition': (
+        "[Word Repetition]: High frequency of repeated content words. "
+        "Fix: Use synonyms and pronominal references to reduce repetition. "
+        "Vary terminology to avoid overusing the same key terms."
+    ),
+}
+
+
+def generate_metric_feedback(ai_details: dict, thresholds: dict, is_en: bool) -> str:
+    """
+    根据每项检测指标的通过情况，生成有针对性的可解释反馈
+    
+    对每一项未通过的指标：
+    1. 说明具体是什么指标
+    2. 解释为什么这是AI痕迹
+    3. 给出可操作的修复建议
+    """
+    failing = get_failing_metrics(ai_details, thresholds)
+    passing = get_passing_metrics(ai_details, thresholds)
+
+    feedback_lib = CHINESE_METRIC_FEEDBACK if not is_en else ENGLISH_METRIC_FEEDBACK
+
+    if not failing:
+        if is_en:
+            return ("The text still retains some machine-generated stiffness. "
+                    "Please further vary sentence lengths, remove remaining formulaic transitions, "
+                    "and ensure vocabulary is diverse and natural.")
+        return ("文本仍残留一些机器生成的僵硬感。请进一步优化句长变化、"
+                "消除剩余的公式化表达，确保语言自然流畅。")
+
+    parts = []
+    if is_en:
+        parts.append(
+            "The system detected that the following AI indicators still exceed acceptable thresholds. "
+            "Each indicator below includes the detected issue and specific guidance for fixing it."
+        )
+    else:
+        parts.append(
+            "系统检测到以下AI指标仍未通过阈值。每条指标都附带了具体的修复指引，"
+            "请逐一对照修改。注意是「替换」而非「删除」——每处修改都必须保留原有的实质信息。"
+        )
+
+    for idx, m in enumerate(failing, 1):
+        desc = m['description']
+        score = m['current_score']
+        max_score = m['max_score']
+        detail = m['details']
+
+        specific_feedback = feedback_lib.get(m['key'], f"指标'{desc}'未通过（{score}分，阈值≤{max_score}分）")
+
+        if is_en:
+            parts.append(f"\n[{idx}] {specific_feedback}")
+        else:
+            parts.append(f"\n【问题{idx}】{specific_feedback}")
+            parts.append(f"  当前检测值: {detail}")
+
+    if is_en:
+        parts.append(
+            "\nPlease rewrite the text above, addressing each issue. "
+            "Maintain all substantive content (arguments, data, methods, conclusions). "
+            "Do not delete information - replace expressions while keeping the meaning."
+        )
+    else:
+        parts.append(
+            "\n请基于以上问题逐一自纠并重新输出。注意每一条被修改的表述都必须保留其原有的实质信息——"
+            "替换的是表达方式，不是删内容。不得遗漏原文中的任何论点、实验结果或结论。"
+        )
+
+    passing_count = len(passing)
+    if passing_count > 0:
+        passed_names = [p['description'] for p in passing]
+        if is_en:
+            parts.append(f"\n✅ Passed indicators: {', '.join(passed_names)}. Keep these improvements.")
+        else:
+            parts.append(f"\n✅ 已通过指标: {'、'.join(passed_names)}。请保持这些指标的优化成果。")
+
+    return "\n".join(parts)
+
+
 def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_id):
     """
-    处理文本润色管道
+    多轮迭代润色管道
 
-    去掉了领域(discipline)限制，专注于语气(tone)调整
+    核心改进（相对旧版）：
+    1. 每项检测指标都有独立阈值，所有指标通过才停止迭代
+    2. 针对未通过指标生成可解释的、可操作的修复反馈
+    3. 追踪文本质量变化，防止质量过度下降
     """
     client = openai.OpenAI(api_key=api_key, base_url=api_base)
 
@@ -204,8 +689,8 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 
     system_prompt = prompt_en if lang == "English" else prompt_zh
     is_en = (lang == "English")
-    MAX_ROUNDS = 5
-    AI_THRESHOLD = 45
+    MAX_ROUNDS = 12
+    thresholds = ENGLISH_METRIC_THRESHOLDS if is_en else CHINESE_METRIC_THRESHOLDS
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -215,6 +700,7 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     revised = text
     ai_score = 100
     ai_details = None
+    original_quality = calculate_quality_metrics(text, lang)
 
     def make_api_call_with_retry(callable_obj, max_retries=3, initial_delay=1.0):
         """带自动重试的 API 调用包装器"""
@@ -241,7 +727,17 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
             if round_num == 1:
                 st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: 初始改写...")
             else:
-                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: AI分数 {ai_score} > {AI_THRESHOLD}，触发定点消除...")
+                failing = get_failing_metrics(ai_details, thresholds)
+                failing_names = [m['description'] for m in failing]
+                passing = get_passing_metrics(ai_details, thresholds)
+                passing_names = [p['description'] for p in passing]
+                summary_parts = []
+                if failing_names:
+                    summary_parts.append(f"❌ {len(failing)}项未通过: {'、'.join(failing_names)}")
+                if passing_names:
+                    summary_parts.append(f"✅ {len(passing)}项已通过: {'、'.join(passing_names)}")
+                summary = " | ".join(summary_parts)
+                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: {summary}")
 
             def make_round_call():
                 return client.chat.completions.create(
@@ -261,8 +757,26 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 
             ai_score, ai_details = calculate_ai_rate(revised, lang)
             st.write(f"🔬 第{round_num}轮评估的AI近似指纹分数: {ai_score}/100")
+
             if ai_details:
-                st.expander(f"第{round_num}轮AI评估详细指标").json(ai_details.get('metrics', {}))
+                with st.expander(f"第{round_num}轮AI评估详细指标 (逐项通过状态)"):
+                    metrics = ai_details.get('metrics', {})
+                    pass_count = 0
+                    fail_count = 0
+                    for metric_key, threshold_info in thresholds.items():
+                        metric_data = metrics.get(metric_key, {})
+                        passes = check_metric_pass(metric_data, threshold_info)
+                        if passes:
+                            pass_count += 1
+                        else:
+                            fail_count += 1
+                        status = "✅" if passes else "❌"
+                        desc = threshold_info['description']
+                        metric_score = metric_data.get('score', 0)
+                        max_score = threshold_info['max_score']
+                        details_str = metric_data.get('details', '')
+                        st.write(f"{status} {desc}: {metric_score}分 (阈值≤{max_score}) — {details_str}")
+                    st.write(f"---\n通过: {pass_count}/{len(thresholds)} | 未通过: {fail_count}/{len(thresholds)}")
 
             if HAS_PIPELINE and lang == "English" and round_num == 1:
                 try:
@@ -280,15 +794,28 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
                 except Exception:
                     pass
 
-            if ai_score <= AI_THRESHOLD:
-                st.success(f"✅ AI分数已降至 {ai_score}/100，低于阈值 {AI_THRESHOLD}，停止迭代。")
+            all_pass, _ = check_all_metrics_pass(ai_details, thresholds)
+
+            current_quality = calculate_quality_metrics(revised, lang)
+            quality_warning = check_quality_degradation(original_quality, current_quality)
+
+            if all_pass:
+                st.success(f"✅ 所有 {len(thresholds)} 项检测指标均已通过阈值！共迭代 {round_num} 轮。")
                 break
 
+            if quality_warning:
+                st.warning(f"⚠️ 质量下降警告: {quality_warning}")
+
             if round_num < MAX_ROUNDS:
-                feedback_str = _generate_feedback(ai_details, is_en)
+                feedback_str = generate_metric_feedback(ai_details, thresholds, is_en)
+                if quality_warning:
+                    feedback_str += "\n\n" + get_quality_preservation_prompt(is_en)
                 messages.append({"role": "user", "content": feedback_str})
             else:
-                st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，AI分数仍为 {ai_score}/100。建议手动微调。")
+                failing = get_failing_metrics(ai_details, thresholds)
+                st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，仍有 {len(failing)} 项指标未通过。建议手动微调。")
+                for m in failing:
+                    st.warning(f"   ❌ {m['description']}: {m['current_score']}分 (阈值: ≤{m['max_score']}分)")
 
         if lang == "Chinese":
             revised = format_clean_chinese(revised)
@@ -309,99 +836,15 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
         return f"API调用出错: {str(e)}", 100
 
 
-def _generate_feedback(ai_details, is_en):
-    """根据检测指标生成针对性的反馈提示"""
-    feedback_points = []
+def check_all_metrics_pass(ai_details: dict, thresholds: dict) -> tuple:
+    """
+    检查是否所有检测指标都通过了阈值
 
-    if not ai_details or 'metrics' not in ai_details:
-        msg = "Please further vary sentence lengths, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，替换刻意的逻辑连接词为自然衔接，并将空泛用词替换为朴实具体的表述。"
-        feedback_points.append(msg)
-        return "\n".join(feedback_points)
-
-    metrics = ai_details['metrics']
-
-    uni_score = metrics.get('sentence_uniformity', {}).get('score', 0)
-    if uni_score > 0.3:
-        msg = "1. 句长分布依然过于均匀（缺乏Burstiness），请进一步刻意打散长短句。" if not is_en else "1. Sentence length distribution is too uniform (lacks burstiness). Mix very short sentences (5-10 words) with long complex ones (30+ words)."
-        feedback_points.append(msg)
-
-    trans_count = metrics.get('transition_overuse', {}).get('count', 0)
-    if trans_count > 0:
-        msg = f"2. 滥用了机械过渡词（被检测到 {trans_count} 次）。" if not is_en else f"2. Overused mechanical transition words (detected {trans_count} times)."
-        feedback_points.append(msg)
-
-    abs_metric = metrics.get('abstract_language', {})
-    abs_count = abs_metric.get('count', abs_metric.get('total_count', 0))
-    if abs_count > 0:
-        msg = f"3. 存在较多空泛套话和大词（被检测到 {abs_count} 次）。" if not is_en else f"3. Contains abstract placeholder phrases (detected {abs_count} times)."
-        feedback_points.append(msg)
-
-    if not is_en:
-        over_hedge = metrics.get('over_hedging', {})
-        hedge_count = over_hedge.get('count', 0)
-        if hedge_count >= 3:
-            hedge_items = over_hedge.get('items', [])
-            hedge_examples = "、".join([f'"{h[0]}"' for h in hedge_items[:5]])
-            feedback_points.append(f'4. 【严重AI痕迹】过度使用对冲词（检测到 {hedge_count} 个，如{hedge_examples}）。请替换为更直接、确定的表述。')
-
-        ttr_obj = metrics.get('bigram_ttr', {})
-        if ttr_obj.get('value', 1.0) < 0.65:
-            feedback_points.append("5. 高频二元词重复率过高（Bigram TTR 极低）。请大幅度更换近义词修饰与表达。")
-
-        clause_obj = metrics.get('clause_chain_density', {})
-        if clause_obj.get('value', 0) > 3.2:
-            feedback_points.append("6. 句法嵌套过深。请立即将超长定语断开，转换为多个独立短句。")
-
-        opening_rep = metrics.get('sentence_opening_repetition', {})
-        if opening_rep.get('count', 0) >= 3:
-            feedback_points.append(f'7. 句首模式重复（"{opening_rep.get("top_pattern", "")}" 开头出现了 {opening_rep.get("count", 0)} 次）。')
-
-        idiom_obj = metrics.get('idiom_overuse', {})
-        if idiom_obj.get('count', 0) >= 4:
-            feedback_points.append(f"8. 成语/四字词组堆砌过多（{idiom_obj.get('count', 0)} 个）。请将多余的成语替换为平实表述。")
-
-        punct_obj = metrics.get('punctuation_density', {})
-        if punct_obj.get('comma_period_ratio', 0) > 3.5:
-            feedback_points.append(f"9. 逗号/句号比过高，说明单句内从句嵌套过多。请多用句号断句。")
-
-        concluding_obj = metrics.get('concluding_formula', {})
-        if concluding_obj.get('count', 0) >= 2:
-            feedback_points.append(f'10. 段末总结套话过多（{concluding_obj.get("count", 0)} 处）。')
-
-        suizhe_obj = metrics.get('suizhe_template', {})
-        if suizhe_obj.get('count', 0) >= 2:
-            feedback_points.append(f'11. 【知网级AI特征】检测到 {suizhe_obj.get("count", 0)} 处"随着/基于...的..."模板句式。请改为"X之后，Y..."等自然表达。')
-
-        para_template = metrics.get('paragraph_template', {})
-        if para_template.get('marker_count', 0) >= 3:
-            feedback_points.append(f'12. 【知网级AI特征】段落结构过于模板化。请打乱"背景→问题→意义→本文方案"的结构顺序。')
-
-        def_pattern = metrics.get('definition_pattern', {})
-        if def_pattern.get('count', 0) >= 2:
-            feedback_points.append(f'13. 【知网级AI特征】检测到 {def_pattern.get("count", 0)} 处"是...的"定义式句式。')
-
-        citation_obj = metrics.get('citation_distribution', {})
-        if citation_obj.get('end_citation_ratio', 0) > 0.8 and citation_obj.get('total_citations', 0) >= 3:
-            feedback_points.append(f'14. 【知网级AI特征】引用过度集中在句末。请将部分引用移到句中。')
-
-    else:
-        burst_obj = metrics.get('burstiness', {})
-        if burst_obj.get('score', 0) > 0.3:
-            feedback_points.append("4. Sentence burstiness is too low. Mix very short sentences with long complex ones.")
-
-        hedge_obj = metrics.get('hedging_overuse', {})
-        if hedge_obj.get('score', 0) > 0.3:
-            feedback_points.append(f"5. Excessive hedging language ({hedge_obj.get('count', 0)} instances). Use more direct academic language.")
-
-    if not feedback_points:
-        msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，替换刻意的逻辑连接词为自然衔接。"
-        feedback_points.append(msg)
-
-    feedback_str = "\n".join(feedback_points)
-    if is_en:
-        return f"The previous output still retains machine-generated stiffness. The system detected the following AI markers:\n\n{feedback_str}\n\nPlease rewrite the text, maintaining logic and professional rigor, but absolutely eliminate the AI characteristics mentioned above."
-    else:
-        return '上一次的改写依然残留机器生成的生硬感。系统检测程序发现了以下机器味缺陷：\n\n' + feedback_str + '\n\n请基于上述缺陷逐一自纠并重新输出。注意是"替换"而非"删除"——每一条被修改的表述都必须保留其原有的实质信息。不得遗漏原文中的任何论点、实验结果或结论。'
+    Returns:
+        (all_pass: bool, failing_metrics: list)
+    """
+    failing = get_failing_metrics(ai_details, thresholds)
+    return len(failing) == 0, failing
 
 
 st.title("🎓 Humanize Academic Paper Pipeline")
