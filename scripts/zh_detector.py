@@ -26,21 +26,32 @@ def analyze_chinese_text(text):
     cv = std_dev / avg_length if avg_length > 0 else 0
 
     uniformity_score = 0
-    if variance_ratio < 0.25:
-        uniformity_score = 35
-        details['metrics']['sentence_uniformity'] = {"score": 0.9, "variance_ratio": round(variance_ratio, 3), "details": "高 (句长极其规律，极度符合AI生成特征)"}
-    elif variance_ratio < 0.40:
-        uniformity_score = 20
-        details['metrics']['sentence_uniformity'] = {"score": 0.6, "variance_ratio": round(variance_ratio, 3), "details": "中等 (句长偏规律，缺乏人类错落感)"}
-    elif variance_ratio < 0.55:
-        uniformity_score = 8
-        details['metrics']['sentence_uniformity'] = {"score": 0.3, "variance_ratio": round(variance_ratio, 3), "details": "低偏中 (句长有一定变化)"}
+    # 短文本（平均句长<15字，如口语化文本）对均匀度要求更宽松
+    if avg_length < 15:
+        if variance_ratio < 0.20:
+            uniformity_score = 20
+            details['metrics']['sentence_uniformity'] = {"score": 0.9, "variance_ratio": round(variance_ratio, 3), "details": "高 (句长极其规律，极度符合AI生成特征)"}
+        elif variance_ratio < 0.35:
+            uniformity_score = 10
+            details['metrics']['sentence_uniformity'] = {"score": 0.6, "variance_ratio": round(variance_ratio, 3), "details": "中等 (句长偏规律，缺乏人类错落感)"}
+        else:
+            details['metrics']['sentence_uniformity'] = {"score": 0.1, "variance_ratio": round(variance_ratio, 3), "details": "低 (句长参差错落，呈现人类 Burstiness)"}
     else:
-        details['metrics']['sentence_uniformity'] = {"score": 0.1, "variance_ratio": round(variance_ratio, 3), "details": "低 (句长参差错落，呈现人类 Burstiness)"}
+        if variance_ratio < 0.25:
+            uniformity_score = 35
+            details['metrics']['sentence_uniformity'] = {"score": 0.9, "variance_ratio": round(variance_ratio, 3), "details": "高 (句长极其规律，极度符合AI生成特征)"}
+        elif variance_ratio < 0.40:
+            uniformity_score = 20
+            details['metrics']['sentence_uniformity'] = {"score": 0.6, "variance_ratio": round(variance_ratio, 3), "details": "中等 (句长偏规律，缺乏人类错落感)"}
+        elif variance_ratio < 0.55:
+            uniformity_score = 8
+            details['metrics']['sentence_uniformity'] = {"score": 0.3, "variance_ratio": round(variance_ratio, 3), "details": "低偏中 (句长有一定变化)"}
+        else:
+            details['metrics']['sentence_uniformity'] = {"score": 0.1, "variance_ratio": round(variance_ratio, 3), "details": "低 (句长参差错落，呈现人类 Burstiness)"}
     score += uniformity_score
 
     # ============================================================
-    # 2. 机器式过渡词 (Transition Overuse) — 大幅扩容
+    # 2. 机器式过渡词 (Transition Overuse)
     # ============================================================
     ai_transitions_zh = [
         "总而言之", "综上所述", "总体来看", "总体而言", "整体来看", "整体而言",
@@ -52,6 +63,10 @@ def analyze_chinese_text(text):
         "换言之", "简而言之", "概括来说", "从宏观来看", "从微观来看",
         "进一步说", "换言之", "具体而言", "一般而言", "通常来说",
         "事实上", "实际上", "本质上", "归根结底",
+        "因此", "然而", "但是", "不过", "可是",
+        "例如", "比如", "如", "举例来说",
+        "随着", "基于", "通过", "利用", "采用",
+        "为了", "旨在", "以期", "以期达到",
     ]
     transition_found = []
     transition_count = 0
@@ -66,10 +81,10 @@ def analyze_chinese_text(text):
         "items": transition_found[:10],
         "details": f"检测到 {transition_count} 个机器常滥用的过渡词"
     }
-    score += min(transition_count * 8, 30)
+    score += min(transition_count * 5, 25)
 
     # ============================================================
-    # 3. 空泛套话/大词/卖弄词 (Abstract Language) — 极大扩容
+    # 3. 空泛套话/大词/卖弄词 (Abstract Language)
     # ============================================================
     abstract_zh = [
         "多种因素", "各个方面", "深远的影响", "发挥着至关重要的作用",
@@ -90,6 +105,9 @@ def analyze_chinese_text(text):
         "从...角度来看", "在...方面",
         "不仅...而且", "既...又", "一方面...另一方面",
         "为...做出了贡献", "推动了...的发展",
+        "智能化", "自动化", "数字化", "信息化",
+        "技术方案", "核心痛点", "取得了平衡",
+        "高效", "优异", "显著",
     ]
     abstract_found = []
     abstract_count = 0
@@ -104,13 +122,10 @@ def analyze_chinese_text(text):
         "items": abstract_found[:15],
         "details": f"检测到 {abstract_count} 个空泛套话/大词短语"
     }
-    score += min(abstract_count * 6, 30)
+    score += min(abstract_count * 7, 35)
 
     # ============================================================
-    # 4. AI过度对冲词检测 (Over-Hedging) — 关键修正
-    # 旧逻辑把对冲词当人类特征减分，这是错误的。
-    # AI改写后的文本恰恰会堆砌"似乎"、"可能表明"等对冲词，
-    # 这是AI模仿人类学术写作的典型痕迹，应予惩罚。
+    # 4. AI过度对冲词检测 (Over-Hedging)
     # ============================================================
     ai_hedging_zh = [
         "似乎", "似乎在一定程度上", "或可", "或可为", "或许",
@@ -183,7 +198,6 @@ def analyze_chinese_text(text):
 
     # ============================================================
     # 6. 句首模式重复检测 (Sentence Opening Repetition)
-    # AI倾向用相同句式开头，如连续多个"本文..."、"该模型..."
     # ============================================================
     sentence_starts = []
     for s in sentences:
@@ -212,7 +226,6 @@ def analyze_chinese_text(text):
 
     # ============================================================
     # 7. 成语/四字词组滥用检测 (Idiom Overuse)
-    # AI生成中文文本时倾向大量堆砌四字成语，人类使用更克制
     # ============================================================
     common_ai_idioms = [
         "不可或缺", "举足轻重", "至关重要", "显而易见", "毋庸置疑",
@@ -231,8 +244,8 @@ def analyze_chinese_text(text):
             idiom_count += cnt
             idiom_found.append((idiom, cnt))
 
-    if idiom_count >= 4:
-        penalty = min((idiom_count - 3) * 4, 15)
+    if idiom_count >= 3:
+        penalty = min((idiom_count - 2) * 5, 15)
         score += penalty
         details['metrics']['idiom_overuse'] = {
             "count": idiom_count,
@@ -248,7 +261,6 @@ def analyze_chinese_text(text):
 
     # ============================================================
     # 8. 句式对称性/排比检测 (Structural Symmetry)
-    # AI极度喜欢排比和对仗结构，人类写作更随意
     # ============================================================
     symmetry_patterns = [
         r'不仅[^，。]{2,15}，而且[^，。]{2,15}',
@@ -270,8 +282,6 @@ def analyze_chinese_text(text):
 
     # ============================================================
     # 9. 标点密度分析 (Punctuation Density)
-    # AI文本逗号密度偏高（因为喜欢长定语从句），
-    # 人类文本句号比例更高（更多短句）
     # ============================================================
     comma_count = text.count('，')
     period_count = text.count('。')
@@ -295,7 +305,7 @@ def analyze_chinese_text(text):
     # ============================================================
     # 10. NLP 技术特征 (Shannon Entropy, Bigram TTR, Clause Density)
     # ============================================================
-    chars_only = [c for c in text if c.strip() and c not in "，。！？、：；""''《》()（）【】· \n\t"]
+    chars_only = [c for c in text if c.strip() and c not in "，。！？、：；\"\"''《》()（）【】· \n\t"]
     if len(chars_only) > 1:
         # 10a. Shannon Entropy
         freqs = Counter(chars_only)
@@ -339,7 +349,6 @@ def analyze_chinese_text(text):
 
     # ============================================================
     # 11. "的"字链检测 (Multiple "的" in sequence)
-    # "XX的XX的XX" 是AI翻译腔/拼凑腔的强信号
     # ============================================================
     de_chain_pattern = r'的[^的]{0,4}的[^的]{0,4}的'
     de_chains = re.findall(de_chain_pattern, text)
@@ -354,13 +363,16 @@ def analyze_chinese_text(text):
 
     # ============================================================
     # 12. 段末总结套话检测 (Concluding Formulaic Patterns)
-    # AI极度喜欢在段落末尾加总结性套话
     # ============================================================
     concluding_patterns = [
         "总体来看", "总而言之", "综上所述", "总的来说",
         "由此可见", "综上", "概而言之",
         "为...提供了", "为...做出了", "推动了...的发展",
         "实现了从...到...的", "完成了从...到...的",
+        "本文将重点研究", "本文旨在", "本文拟",
+        "本文通过", "本文基于", "本文提出",
+        "具有重要的现实意义", "具有重要的理论意义",
+        "对于...具有重大的现实意义",
     ]
     concluding_count = 0
     concluding_found = []
@@ -370,13 +382,13 @@ def analyze_chinese_text(text):
             concluding_count += cnt
             concluding_found.append((p, cnt))
 
-    if concluding_count >= 3:
-        penalty = min((concluding_count - 2) * 5, 15)
+    if concluding_count >= 2:
+        penalty = min((concluding_count - 1) * 6, 18)
         score += penalty
         details['metrics']['concluding_formula'] = {
             "count": concluding_count,
             "items": concluding_found[:10],
-            "details": f"段末总结套话过多 ({concluding_count} 处)，AI典型模式，惩罚 +{penalty}"
+            "details": f"段末总结套话/本文指向句过多 ({concluding_count} 处)，AI典型模式，惩罚 +{penalty}"
         }
 
     # ============================================================
@@ -397,7 +409,6 @@ def analyze_chinese_text(text):
 
     # ============================================================
     # 14. 词汇重复度检测 (Lexical Repetition)
-    # AI在短文本中容易反复使用相同的关键词
     # ============================================================
     content_chars_segments = re.findall(r'[\u4e00-\u9fa5]{2,}', text)
     if content_chars_segments:
@@ -419,6 +430,161 @@ def analyze_chinese_text(text):
                         "ratio": round(repetition_ratio, 3),
                         "details": f"高频二元词重复 (\"{top_bigram[0]}\" 出现 {top_bigram[1]} 次)，惩罚 +{penalty}"
                     }
+
+    # ============================================================
+    # 15. 【新增】"随着...的..." AI模板句式检测
+    # 这是AI写中文论文的标志性句式
+    # ============================================================
+    suizhe_patterns = [
+        r'随着[^，。]{2,20}的[^，。]{2,20}',
+        r'基于[^，。]{2,20}的[^，。]{2,20}',
+        r'通过[^，。]{2,20}的[^，。]{2,20}',
+        r'利用[^，。]{2,20}的[^，。]{2,20}',
+    ]
+    suizhe_count = 0
+    suizhe_found = []
+    for pat in suizhe_patterns:
+        matches = re.findall(pat, text)
+        suizhe_count += len(matches)
+        suizhe_found.extend(matches)
+
+    if suizhe_count >= 2:
+        penalty = min(suizhe_count * 6, 20)
+        score += penalty
+        details['metrics']['suizhe_template'] = {
+            "count": suizhe_count,
+            "examples": suizhe_found[:5],
+            "details": f"检测到 {suizhe_count} 处'随着/基于/通过...的...'模板句式，AI论文写作标志性特征，惩罚 +{penalty}"
+        }
+    elif suizhe_count > 0:
+        details['metrics']['suizhe_template'] = {
+            "count": suizhe_count,
+            "examples": suizhe_found[:5],
+            "details": f"检测到 {suizhe_count} 处'随着/基于...的...'模板句式"
+        }
+
+    # ============================================================
+    # 16. 【新增】段落结构模板检测 (Paragraph Structure Template)
+    # AI论文引言常用"背景→问题→意义→本文方案"的机械结构
+    # ============================================================
+    paragraph_structure_markers = 0
+    # 背景引入标记
+    bg_markers = ["是...的重要", "在...中发挥", "作为...的", "近年来", "随着"]
+    for m in bg_markers:
+        if m in text:
+            paragraph_structure_markers += 1
+            break
+    # 问题/不足标记
+    problem_markers = ["然而", "但是", "不足", "局限", "问题", "挑战", "困难"]
+    for m in problem_markers:
+        if m in text:
+            paragraph_structure_markers += 1
+            break
+    # 意义/价值标记
+    value_markers = ["具有重要意义", "具有重要价值", "现实意义", "理论意义", "应用价值"]
+    for m in value_markers:
+        if m in text:
+            paragraph_structure_markers += 1
+            break
+    # 本文方案标记
+    paper_markers = ["本文", "本研究", "本文旨在", "本文拟", "本文将"]
+    for m in paper_markers:
+        if m in text:
+            paragraph_structure_markers += 1
+            break
+
+    if paragraph_structure_markers >= 3:
+        penalty = (paragraph_structure_markers - 2) * 8
+        score += penalty
+        details['metrics']['paragraph_template'] = {
+            "marker_count": paragraph_structure_markers,
+            "details": f"段落结构过于模板化 (检测到 {paragraph_structure_markers}/4 个结构标记：背景→问题→意义→本文方案)，AI论文引言典型机械结构，惩罚 +{penalty}"
+        }
+    else:
+        details['metrics']['paragraph_template'] = {
+            "marker_count": paragraph_structure_markers,
+            "details": f"段落结构自然度尚可 ({paragraph_structure_markers}/4 个结构标记)"
+        }
+
+    # ============================================================
+    # 17. 【新增】"是"字定义句式检测 (Definition Pattern)
+    # AI喜欢用"XX是YY"的机械定义句式
+    # ============================================================
+    definition_pattern = r'[^，。]{3,20}是[^，。]{3,30}的[^，。]{2,20}'
+    definition_matches = re.findall(definition_pattern, text)
+    if len(definition_matches) >= 2:
+        penalty = min(len(definition_matches) * 5, 15)
+        score += penalty
+        details['metrics']['definition_pattern'] = {
+            "count": len(definition_matches),
+            "examples": definition_matches[:3],
+            "details": f"检测到 {len(definition_matches)} 处'是...的'定义式句式，AI机械表达特征，惩罚 +{penalty}"
+        }
+    elif len(definition_matches) > 0:
+        details['metrics']['definition_pattern'] = {
+            "count": len(definition_matches),
+            "examples": definition_matches[:3],
+            "details": f"检测到 {len(definition_matches)} 处'是...的'定义式句式"
+        }
+
+    # ============================================================
+    # 18. 【新增】引用分布均匀度检测 (Citation Distribution)
+    # AI生成的引用往往均匀分布在句末
+    # ============================================================
+    citation_pattern = r'\[\d+(?:-\d+)?\]'
+    citations = re.findall(citation_pattern, text)
+    if len(citations) >= 3:
+        # 检查引用是否都出现在句末
+        sentences_with_citations = 0
+        sentence_end_citations = 0
+        for s in sentences:
+            if re.search(citation_pattern, s):
+                sentences_with_citations += 1
+                # 检查引用是否在句子最后5个字符内
+                if re.search(citation_pattern + r'[^\u4e00-\u9fa5a-zA-Z]{0,3}$', s):
+                    sentence_end_citations += 1
+        if sentences_with_citations > 0 and sentence_end_citations / sentences_with_citations > 0.8:
+            penalty = 10
+            score += penalty
+            details['metrics']['citation_distribution'] = {
+                "total_citations": len(citations),
+                "end_citation_ratio": round(sentence_end_citations / sentences_with_citations, 2),
+                "details": f"引用过度集中在句末 ({sentence_end_citations}/{sentences_with_citations} 句)，AI机械排版特征，惩罚 +{penalty}"
+            }
+        else:
+            details['metrics']['citation_distribution'] = {
+                "total_citations": len(citations),
+                "end_citation_ratio": round(sentence_end_citations / sentences_with_citations, 2) if sentences_with_citations > 0 else 0,
+                "details": f"引用分布正常 ({len(citations)} 个引用)"
+            }
+
+    # ============================================================
+    # 19. 【新增】信息密度均匀度检测 (Information Density Uniformity)
+    # AI每句话的信息量均匀，人类有起伏
+    # ============================================================
+    if len(sentences) >= 3:
+        # 用每句话中实词（名词、动词）的比例来估算信息密度
+        info_densities = []
+        for s in sentences:
+            # 简单的启发式：内容字符数 / 总字符数
+            content_chars = len(re.findall(r'[\u4e00-\u9fa5]', s))
+            total_chars = len(s)
+            if total_chars > 0:
+                info_densities.append(content_chars / total_chars)
+        if len(info_densities) >= 3:
+            info_density_std = np.std(info_densities)
+            if info_density_std < 0.05:
+                penalty = 12
+                score += penalty
+                details['metrics']['info_density_uniformity'] = {
+                    "std": round(info_density_std, 4),
+                    "details": f"信息密度过于均匀 (std={round(info_density_std, 4)})，AI文本每句话信息量相近，人类写作有起伏，惩罚 +{penalty}"
+                }
+            else:
+                details['metrics']['info_density_uniformity'] = {
+                    "std": round(info_density_std, 4),
+                    "details": f"信息密度有变化 (std={round(info_density_std, 4)})"
+                }
 
     final_score = min(100, max(0, int(score)))
     details['overall_score'] = final_score

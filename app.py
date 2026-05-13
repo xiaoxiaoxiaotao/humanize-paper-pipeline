@@ -99,22 +99,24 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
         "Anthropology": "Values ethnographic detail, 'thick description', and reflexive voice. Subjective and descriptive language is more acceptable here.",
         "Political Science": "Emphasize institutional frameworks, power dynamics, and hypothesis testing.",
         "Education": "Focus on pedagogy, learning outcomes, and equity. Policy relevance is often highlighted.",
-        "Psychology": "Use precise operational definitions and behavioral mechanisms. Experimental design descriptions should be rigid but natural."
+        "Psychology": "Use precise operational definitions and behavioral mechanisms. Experimental design descriptions should be rigid but natural.",
+        "其他 (Other)": "Follow general academic writing conventions appropriate for your field. Maintain appropriate formality, precision, and logical flow. Use terminology standard in your discipline without unnecessary embellishment."
     }
-    
+
     discipline_rules_zh = {
-        "Computer Science": "强调技术精确性、算法逻辑和系统架构。不要对技术过程进行过度修饰。在描述系统和方法时，使用平实的陈述句或第一人称（如“本文提出”）是完全可以接受的。",
+        "Computer Science": "强调技术精确性、算法逻辑和系统架构。不要对技术过程进行过度修饰。在描述系统和方法时，使用平实的陈述句或第一人称（如"本文提出"）是完全可以接受的。",
         "Engineering": "侧重于实际应用、设计约束、性能指标和方法论。保持极其客观、数据驱动的语气。",
         "Economics/Business": "侧重于实证证据、因果推断和经济模型。简洁地使用标准的计量经济学或商业术语。",
         "Sociology": "熟练使用资本、阶层、制度等社会学概念。定性描述应体现反思性，定量部分则保持客观。",
-        "Anthropology": "看重民族志细节、“深描”和反思性语态。在这里，主观和描述性的语言更加被接受。",
+        "Anthropology": "看重民族志细节、"深描"和反思性语态。在这里，主观和描述性的语言更加被接受。",
         "Political Science": "强调制度框架、权力动态和假设检验语言。",
         "Education": "关注教学法、学习结果和教育公平。突出政策相关性。",
-        "Psychology": "必须使用精确的操作性定义和行为机制术语。实验设计的描述应当严谨自然。"
+        "Psychology": "必须使用精确的操作性定义和行为机制术语。实验设计的描述应当严谨自然。",
+        "其他 (Other)": "遵循您所在领域的一般学术写作规范。保持适当的正式性、精确性和逻辑流畅性。使用您所在学科的标准术语，避免不必要的修饰。"
     }
-    
-    extra_rule_en = discipline_rules_en.get(discipline, "")
-    extra_rule_zh = discipline_rules_zh.get(discipline, "")
+
+    extra_rule_en = discipline_rules_en.get(discipline, discipline_rules_en["其他 (Other)"])
+    extra_rule_zh = discipline_rules_zh.get(discipline, discipline_rules_zh["其他 (Other)"])
     
     # 语气特定的补充约束
     tone_rules_en = {
@@ -187,6 +189,19 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
     - 综上所述 / 总而言之 / 由此可见 → 替换为用内容自然收束
     - 值得注意的是 / 需要强调的是 → 替换为直接说重点
     - 不可或缺 / 至关重要 / 举足轻重 → 替换为"重要"、"关键"等朴素词
+    - 发挥着重要作用 → 替换为更具体的描述，如"推动了..."、"支撑了..."
+    - 具有重要的现实意义 → 替换为具体说明有什么实际用途
+    - 本文将重点研究 / 本文旨在 / 本文拟 → 替换为更自然的论文引入方式，如直接陈述研究内容
+
+    【知网/万方/维普检测系统重点识别的AI特征——必须避免】：
+    1. "随着...的..."模板句式：如"随着深度学习的兴起"、"随着施工区域的扩大"——这是AI写论文的标志性句式。请改为："深度学习兴起之后"、"施工区域扩大时"等更自然的表达。
+    2. "基于...的..."模板句式：如"基于深度学习的目标检测算法"——改为"使用深度学习的目标检测算法"或"以深度学习为基础的目标检测算法"。
+    3. "是...的"定义式堆砌：如"建筑行业是国民经济的重要引擎"——改为"建筑行业推动国民经济发展"或"国民经济离不开建筑行业的支撑"。
+    4. 多层定语嵌套：如"复杂的施工环境和高风险的工作内容"——改为"施工现场环境复杂、工作内容风险高"。
+    5. 段落结构模板化：避免"背景→问题→意义→本文方案"的机械四段式结构。可以适当打乱顺序，或将意义和背景融合。
+    6. 引用全部集中在句末：如"...重要作用[1]。"——尝试将引用放在句中或改变引用位置。
+    7. "因此"、"然而"等逻辑连接词密度过高：每段出现2次以上就太多了。用语义衔接替代显式连接词。
+    8. 信息密度均匀：AI每句话长度和信息量都差不多。请刻意制造起伏——有的句子很短（5-8字），有的很长（30+字）。
 
     【可以保留的正常学术表达】（以下表达在学术文本中是正常的，不要误删）：
     - "构建了"、"提出了"、"确立了"、"展现了" — 这是标准学术动词
@@ -199,6 +214,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
     - 写得像人，不是写得像"试图模仿人的AI"。人类写作的特点是：直接、具体、有主见、不绕弯子。
     - 不要为了显得"谨慎"而堆砌对冲词。真正的学术对冲是"有待进一步验证"、"尚需探讨"，而不是"似乎在一定程度上可能表明"。
     - 每句话都要有信息增量，不要写废话。但反过来，有信息量的句子绝对不能删。
+    - 人类写论文引言不会严格按照"背景→问题→意义→方案"的模板，而是根据思路自然流动。
 
     格式要求：
     - 不要解释，禁止输出排版花样，直接输出纯净还原为自然连贯的段落文本。
@@ -226,7 +242,7 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
         if ai_details:
             st.expander("AI评估详细指标").json(ai_details.get('metrics', {}))
         
-        if ai_score > 35:
+        if ai_score > 45:
             st.info("AI分数高于阈值，触发Pipeline Step 2: 依据探针自动给出的反馈意见要求大模型进行定点消除...")
             
             # 动态提取启发式反馈，组织反馈话术
@@ -291,8 +307,35 @@ def process_pipeline(text, lang, target_format, discipline, tone, api_base, api_
 
                     # 新增：段末总结套话反馈
                     concluding_obj = metrics.get('concluding_formula', {})
-                    if concluding_obj.get('count', 0) >= 3:
-                        feedback_points.append(f'10. 机器指纹暴露：段末总结套话过多（检测到 {concluding_obj.get("count", 0)} 处，如"总体来看"、"综上所述"等）。请将这些总结性套话替换为内容的自然收束，但保留套话中包含的实质信息。')
+                    if concluding_obj.get('count', 0) >= 2:
+                        feedback_points.append(f'10. 机器指纹暴露：段末总结套话/本文指向句过多（检测到 {concluding_obj.get("count", 0)} 处，如"总体来看"、"本文将重点研究"等）。请将这些套话替换为内容的自然收束，或将"本文"指向句改为直接陈述研究内容。')
+
+                    # 【新增】"随着/基于...的..."模板句式反馈
+                    suizhe_obj = metrics.get('suizhe_template', {})
+                    if suizhe_obj.get('count', 0) >= 2:
+                        examples = suizhe_obj.get('examples', [])
+                        ex_str = '、'.join(examples[:3]) if examples else ''
+                        feedback_points.append(f'11. 【知网级AI特征】检测到 {suizhe_obj.get("count", 0)} 处"随着/基于/通过...的..."模板句式（如"{ex_str}"）。这是知网/万方检测系统重点识别的AI标志。请将"随着X的Y"改为"X之后，Y..."、"当X时，Y..."等自然表达；将"基于X的Y"改为"使用X的Y"、"以X为基础的Y"。')
+
+                    # 【新增】段落结构模板化反馈
+                    para_template = metrics.get('paragraph_template', {})
+                    if para_template.get('marker_count', 0) >= 3:
+                        feedback_points.append(f'12. 【知网级AI特征】段落结构过于模板化（检测到 {para_template.get("marker_count", 0)}/4 个结构标记：背景→问题→意义→本文方案）。知网检测系统能识别这种机械结构。请打乱顺序，或将背景和意义融合，避免严格按照模板写作。')
+
+                    # 【新增】"是...的"定义式句式反馈
+                    def_pattern = metrics.get('definition_pattern', {})
+                    if def_pattern.get('count', 0) >= 2:
+                        feedback_points.append(f'13. 【知网级AI特征】检测到 {def_pattern.get("count", 0)} 处"是...的"定义式句式。AI喜欢用"XX是YY"下定义。请将定义句改为主谓宾结构，如"XX推动了YY"而非"XX是YY的重要引擎"。')
+
+                    # 【新增】引用分布反馈
+                    citation_obj = metrics.get('citation_distribution', {})
+                    if citation_obj.get('end_citation_ratio', 0) > 0.8 and citation_obj.get('total_citations', 0) >= 3:
+                        feedback_points.append(f'14. 【知网级AI特征】引用过度集中在句末（{citation_obj.get("total_citations", 0)} 个引用，{citation_obj.get("end_citation_ratio", 0)*100:.0f}% 在句末）。AI生成文本的引用位置非常机械。请将部分引用移到句中，或改变引用位置。')
+
+                    # 【新增】信息密度均匀度反馈
+                    info_density = metrics.get('info_density_uniformity', {})
+                    if '惩罚' in info_density.get('details', ''):
+                        feedback_points.append('15. 信息密度过于均匀，每句话长度和信息量相近。请刻意制造起伏——插入短句（5-8字）打破节奏，或扩展某句话使其明显长于其他句子。')
 
             if not feedback_points:
                 msg = "Please further vary sentence lengths perfectly, remove all formulaic transitions, and drastically reduce empty wording." if is_en else "请进一步打散句子长度，使其长短交错，替换刻意的逻辑连接词为自然衔接，并将空泛用词替换为朴实具体的表述。"
@@ -350,7 +393,7 @@ with st.sidebar:
     )
     discipline_opt = st.selectbox(
         "Discipline",
-        ["Computer Science", "Engineering", "Economics/Business", "Sociology", "Anthropology", "Political Science", "Education", "Psychology"]
+        ["Computer Science", "Engineering", "Economics/Business", "Sociology", "Anthropology", "Political Science", "Education", "Psychology", "其他 (Other)"]
     )
 
 st.subheader("Input Text")
@@ -367,9 +410,9 @@ if st.button("🚀 运行 Humanize Pipeline"):
         st.subheader("📊 原始文本分析")
         orig_score, orig_details = calculate_ai_rate(input_text, lang_param)
         
-        if orig_score > 60:
-            st.error(f"润色前原始文本AI评分: {orig_score}/100 (强AI痕迹)")
-        elif orig_score > 35:
+        if orig_score > 70:
+            st.error(f"润色前原始文本AI评分: {orig_score}/100 (强AI痕迹，与知网/万方检测水平相当)")
+        elif orig_score > 45:
             st.warning(f"润色前原始文本AI评分: {orig_score}/100 (中等AI痕迹)")
         else:
             st.success(f"润色前原始文本AI评分: {orig_score}/100 (低AI痕迹，可能无需过度润色)")
@@ -385,11 +428,11 @@ if st.button("🚀 运行 Humanize Pipeline"):
         st.subheader("✅ 输出结果")
         st.metric(label="AI分数降幅", value=f"{final_score}/100", delta=f"{final_score - orig_score} 分", delta_color="inverse")
         
-        if final_score < 35:
-            st.success(f"最终AI味评分过关 ({final_score}/100)")
-        elif final_score < 60:
+        if final_score < 40:
+            st.success(f"最终AI味评分过关 ({final_score}/100) — 已接近知网/万方低AI率水平")
+        elif final_score < 65:
             st.warning(f"最终AI味评分尚可 ({final_score}/100)，建议手动微调")
         else:
-            st.error(f"最终AI味评分偏高 ({final_score}/100)")
+            st.error(f"最终AI味评分偏高 ({final_score}/100)，建议重新润色")
             
         st.text_area("复制结果", final_text, height=300)
