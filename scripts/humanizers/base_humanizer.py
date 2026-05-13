@@ -73,20 +73,22 @@ class BaseHumanizer(ABC):
         result = text
         
         for old_word, new_words in replacements.items():
-            if old_word in text:
+            if old_word in result:
                 new_word = random.choice(new_words)
-                # 只替换部分出现的，保留一些原始特征
-                parts = text.split(old_word)
+                parts = result.split(old_word)
                 new_parts = [parts[0]]
+                replaced = False
                 for i in range(1, len(parts)):
                     if random.random() < 0.6:
                         new_parts.append(new_word)
+                        replaced = True
                     else:
                         new_parts.append(old_word)
                     new_parts.append(parts[i])
                 
-                result = ''.join(new_parts)
-                changes.append(f"替换 {old_word} -> {new_word}")
+                if replaced:
+                    result = ''.join(new_parts)
+                    changes.append(f"替换 {old_word} -> {new_word}")
         
         return result, changes
     

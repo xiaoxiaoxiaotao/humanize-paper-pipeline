@@ -35,6 +35,7 @@ class ChineseDetector(BaseDetector):
         '极大', '极大地',
         '创新性地', '该改进', '深入分析',
         '显著提升了', '有效提升了', '实现了显著',
+        '当前', '现阶段', '无论', '不论',
     ]
 
     ABSTRACT_PHRASES = [
@@ -64,6 +65,14 @@ class ChineseDetector(BaseDetector):
         '基础框架', '轻量计算量', '轻量级',
         '兼顾性能',
         '频域特征', '特征建模', '特征增强',
+        '扮演着', '扮演了', '充当着', '充当了',
+        '是...的前提', '是...的基础', '是...的关键',
+        '直接决定了', '直接决定', '决定了...上限',
+        '决定了...性能', '决定了...质量',
+        '强大且高效', '高效且', '有效且',
+        '富含语义', '富含', '高维的',
+        '首要步骤', '首要任务', '首要目标',
+        '送入', '输入到',
     ]
 
     TEMPLATE_PATTERNS = [
@@ -106,6 +115,27 @@ class ChineseDetector(BaseDetector):
         r'显著提升了[^，。]{2,40}',
         r'为[^，。]{2,30}提供了[^，。]{2,30}支持',
         r'实现[^，。]{2,20}协同[^，。]{2,20}',
+        r'以获取[^，。]{2,40}',
+        r'以提升[^，。]{2,40}',
+        r'以达到[^，。]{2,40}',
+        r'将[^，。]{2,30}送入[^，。]{2,30}',
+        r'将[^，。]{2,30}输入[^，。]{2,30}',
+        r'无论是[^，。]{2,30}还是[^，。]{2,30}',
+        r'不仅是[^，。]{2,20}也是[^，。]{2,20}',
+        r'不仅是[^，。]{2,20}其[^，。]{2,20}也',
+        r'不仅是[^，。]{2,20}还[^，。]{2,20}',
+        r'是[^，。]{2,30}的前提',
+        r'是[^，。]{2,30}的基础',
+        r'是[^，。]{2,30}的关键',
+        r'直接决定了[^，。]{2,40}',
+        r'决定了[^，。]{2,20}的[^，。]{2,20}',
+        r'扮演着[^，。]{2,20}的角色',
+        r'扮演了[^，。]{2,20}的角色',
+        r'充当着[^，。]{2,20}的角色',
+        r'无论[^，。]{2,30}其[^，。]{2,30}',
+        r'当前[，,][^，。]{2,40}无论',
+        r'这个过程[^，。]{2,40}',
+        r'因此[，,][^，。]{2,20}是[^，。]{2,30}的前提',
     ]
 
     HEDGE_WORDS = [
@@ -124,6 +154,8 @@ class ChineseDetector(BaseDetector):
         '因此，本研究', '因此，本文', '综上',
         '通过以上分析', '基于以上分析',
         '从以上分析可以看出', '以上结果表明',
+        '因此，选择', '因此，采用', '因此，提出',
+        '因此，构建', '因此，设计',
     ]
 
     IDIOM_PATTERNS = [
@@ -140,6 +172,46 @@ class ChineseDetector(BaseDetector):
         '随着', '近年来', '当前', '目前', '现阶段',
         '然而', '但是', '因此', '所以',
         '本文', '本研究', '本课题',
+    ]
+
+    ABSOLUTE_LANGUAGE = [
+        '直接决定了', '直接决定', '决定了',
+        '是...的前提', '是...的基础', '是...的关键',
+        '毫无疑问', '显然', '显而易见',
+        '必然', '必定', '一定',
+        '彻底', '完全', '根本上',
+        '决定了...上限', '决定了...性能',
+        '是...的保证', '是...的核心',
+    ]
+
+    CORRELATIVE_CONJUNCTIONS = [
+        (r'不仅[^，。]{1,30}也[^，。]{1,30}', '不仅...也...'),
+        (r'不仅[^，。]{1,30}还[^，。]{1,30}', '不仅...还...'),
+        (r'不仅[^，。]{1,30}而且[^，。]{1,30}', '不仅...而且...'),
+        (r'无论是[^，。]{1,30}还是[^，。]{1,30}', '无论是...还是...'),
+        (r'不论[^，。]{1,30}都[^，。]{1,30}', '不论...都...'),
+        (r'无论[^，。]{1,30}都[^，。]{1,30}', '无论...都...'),
+        (r'无论[^，。]{1,30}其[^，。]{1,30}', '无论...其...'),
+        (r'既[^，。]{1,15}又[^，。]{1,15}', '既...又...'),
+        (r'既[^，。]{1,15}也[^，。]{1,15}', '既...也...'),
+        (r'一方面[^，。]{1,30}另一方面', '一方面...另一方面...'),
+        (r'不是[^，。]{1,20}而是[^，。]{1,20}', '不是...而是...'),
+        (r'不仅[^，。]{1,30}其[^，。]{1,15}也', '不仅...其...也'),
+    ]
+
+    AI_ADJECTIVE_PAIRS = [
+        r'[^\u4e00-\u9fa5]{0,5}(?:强大|高效|有效|优秀|出色|卓越|先进|创新)[^\u4e00-\u9fa5]{0,5}(?:且|而|又)[^\u4e00-\u9fa5]{0,5}(?:高效|强大|有效|优秀|出色|卓越|先进|创新|精准|稳定|可靠)',
+        r'(?:高维|深层|深度|多维|高阶)[^\u4e00-\u9fa5]{0,5}[、，,][^\u4e00-\u9fa5]{0,5}(?:富含|丰富|富集|稠密|密集)',
+        r'(?:富含|具有|拥有|包含)[^，。]{1,15}(?:语义|特征|信息|知识)[^\u4e00-\u9fa5]{0,5}(?:表示|表达|表征|特征)',
+    ]
+
+    PURPOSE_CLAUSE_PATTERNS = [
+        r'以[^，。]{2,40}',
+        r'从而[^，。]{2,40}',
+        r'进而[^，。]{2,40}',
+        r'用于[^，。]{2,40}',
+        r'以便[^，。]{2,40}',
+        r'旨在[^，。]{2,40}',
     ]
 
     def __init__(self):
@@ -178,6 +250,14 @@ class ChineseDetector(BaseDetector):
         score, details = self._analyze_definition_pattern(text, score, details)
         score, details = self._analyze_em_dash_overuse(text, score, details)
         score, details = self._analyze_citation_distribution(text, score, details)
+
+        score, details = self._analyze_absolute_language(text, score, details)
+        score, details = self._analyze_correlative_conjunctions(text, score, details)
+        score, details = self._analyze_ai_adjectives(text, score, details)
+        score, details = self._analyze_purpose_clauses(text, score, details)
+        score, details = self._analyze_sentence_structure_pattern(sentences, text, score, details)
+        score, details = self._analyze_role_playing_pattern(text, score, details)
+        score, details = self._analyze_premise_conclusion_pattern(text, score, details)
 
         final_score = min(100, max(0, score))
         details['overall_score'] = final_score
@@ -430,6 +510,8 @@ class ChineseDetector(BaseDetector):
             metric_score = 12
         elif phrase_count > 3:
             metric_score = 8
+        elif phrase_count > 1:
+            metric_score = 4
 
         details['metrics']['abstract_language'] = {
             'count': phrase_count,
@@ -836,6 +918,225 @@ class ChineseDetector(BaseDetector):
             'end_citation_ratio': round(end_ratio, 2),
             'score': metric_score,
             'details': f'引用{total_citations}处，{end_ratio*100:.0f}%在句末'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_absolute_language(self, text: str, score: int,
+                                  details: Dict) -> Tuple[int, Dict]:
+        patterns = [
+            r'直接决定了[^，。]{2,40}',
+            r'直接决定[^，。]{2,40}',
+            r'决定了[^，。]{2,20}的[^，。]{2,20}',
+            r'是[^，。]{2,30}的前提',
+            r'是[^，。]{2,30}的基础',
+            r'是[^，。]{2,30}的关键',
+            r'是[^，。]{2,30}的保证',
+            r'是[^，。]{2,30}的核心',
+            r'毫无疑问[^，。]{2,40}',
+            r'显然[^，。]{2,40}',
+            r'必然[^，。]{2,40}',
+        ]
+
+        total_count = 0
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+            total_count += len(matches)
+
+        metric_score = 0
+        if total_count >= 3:
+            metric_score = 14
+        elif total_count >= 2:
+            metric_score = 10
+        elif total_count >= 1:
+            metric_score = 5
+
+        details['metrics']['absolute_language'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'绝对化语言 {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_correlative_conjunctions(self, text: str, score: int,
+                                         details: Dict) -> Tuple[int, Dict]:
+        total_count = 0
+        found = []
+        for pattern, name in self.CORRELATIVE_CONJUNCTIONS:
+            matches = re.findall(pattern, text)
+            if matches:
+                total_count += len(matches)
+                found.append((name, len(matches)))
+
+        metric_score = 0
+        if total_count >= 3:
+            metric_score = 12
+        elif total_count >= 2:
+            metric_score = 8
+        elif total_count >= 1:
+            metric_score = 4
+
+        details['metrics']['correlative_conjunctions'] = {
+            'count': total_count,
+            'items': found,
+            'score': metric_score,
+            'details': f'关联词结构 {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_ai_adjectives(self, text: str, score: int,
+                              details: Dict) -> Tuple[int, Dict]:
+        total_count = 0
+        for pattern in self.AI_ADJECTIVE_PAIRS:
+            matches = re.findall(pattern, text)
+            total_count += len(matches)
+
+        metric_score = 0
+        if total_count >= 2:
+            metric_score = 10
+        elif total_count >= 1:
+            metric_score = 5
+
+        details['metrics']['ai_adjectives'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'AI修饰词组合 {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_purpose_clauses(self, text: str, score: int,
+                                details: Dict) -> Tuple[int, Dict]:
+        total_count = 0
+        for pattern in self.PURPOSE_CLAUSE_PATTERNS:
+            matches = re.findall(pattern, text)
+            total_count += len(matches)
+
+        metric_score = 0
+        if total_count >= 3:
+            metric_score = 10
+        elif total_count >= 2:
+            metric_score = 6
+        elif total_count >= 1:
+            metric_score = 3
+
+        details['metrics']['purpose_clauses'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'目的/结果从句 {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_sentence_structure_pattern(self, sentences: List[str],
+                                           text: str, score: int,
+                                           details: Dict) -> Tuple[int, Dict]:
+        if len(sentences) < 3:
+            return score, details
+
+        structure_patterns = []
+        for sent in sentences:
+            has_comma = '，' in sent or ',' in sent
+            has_citation = bool(re.search(r'\[\d+(?:[-,]\d+)*\]', sent))
+            starts_with_transition = any(sent.startswith(t) for t in self.AI_TRANSITIONS)
+            has_purpose = bool(re.search(r'以[^，。]{2,}', sent))
+            has_definition = bool(re.search(r'是[^，。]{2,20}的[^，。]{2,20}', sent))
+
+            pattern_key = (
+                'Y' if has_comma else 'N',
+                'Y' if has_citation else 'N',
+                'Y' if starts_with_transition else 'N',
+                'Y' if has_purpose else 'N',
+                'Y' if has_definition else 'N',
+            )
+            structure_patterns.append(pattern_key)
+
+        if len(structure_patterns) >= 3:
+            counter = Counter(structure_patterns)
+            most_common_pattern, count = counter.most_common(1)[0]
+            pattern_ratio = count / len(structure_patterns)
+
+            metric_score = 0
+            if pattern_ratio > 0.75:
+                metric_score = 12
+            elif pattern_ratio > 0.6:
+                metric_score = 7
+            elif pattern_ratio > 0.5:
+                metric_score = 3
+
+            details['metrics']['sentence_structure_pattern'] = {
+                'dominant_ratio': round(pattern_ratio, 2),
+                'score': metric_score,
+                'details': f'句式结构重复率 {pattern_ratio*100:.0f}%'
+            }
+
+            return score + metric_score, details
+
+        return score, details
+
+    def _analyze_role_playing_pattern(self, text: str, score: int,
+                                     details: Dict) -> Tuple[int, Dict]:
+        patterns = [
+            r'扮演[^，。]{0,10}的角色',
+            r'充当[^，。]{0,10}的角色',
+            r'作为[^，。]{0,10}的角色',
+            r'扮演[^，。]{0,10}角色',
+            r'充当[^，。]{0,10}角色',
+            r'起着[^，。]{0,10}作用',
+            r'起到[^，。]{0,10}作用',
+            r'发挥着[^，。]{0,10}作用',
+        ]
+
+        total_count = 0
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+            total_count += len(matches)
+
+        metric_score = 0
+        if total_count >= 2:
+            metric_score = 10
+        elif total_count >= 1:
+            metric_score = 5
+
+        details['metrics']['role_playing_pattern'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'"扮演/充当/作为...角色" {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_premise_conclusion_pattern(self, text: str, score: int,
+                                           details: Dict) -> Tuple[int, Dict]:
+        patterns = [
+            r'因此[，,][^，。]{2,30}是[^，。]{2,30}的前提',
+            r'因此[，,][^，。]{2,30}是[^，。]{2,30}的基础',
+            r'因此[，,][^，。]{2,30}是[^，。]{2,30}的关键',
+            r'因此[，,][^，。]{2,30}选择[^，。]{2,30}',
+            r'因此[，,][^，。]{2,30}采用[^，。]{2,30}',
+            r'因此[，,][^，。]{2,30}提出[^，。]{2,30}',
+            r'因此[，,][^，。]{2,30}构建[^，。]{2,30}',
+            r'因此[，,][^，。]{2,30}设计[^，。]{2,30}',
+            r'因此[，,][^，。]{2,30}需要[^，。]{2,30}',
+        ]
+
+        total_count = 0
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+            total_count += len(matches)
+
+        metric_score = 0
+        if total_count >= 2:
+            metric_score = 12
+        elif total_count >= 1:
+            metric_score = 6
+
+        details['metrics']['premise_conclusion_pattern'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'"因此...是...前提/基础/关键" {total_count} 处'
         }
 
         return score + metric_score, details
