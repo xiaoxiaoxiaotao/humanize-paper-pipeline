@@ -11,6 +11,8 @@ from zh_detector_enhanced import analyze_chinese_text
 from text_analyzer import TextAnalyzer
 from formatter import strip_latex
 from enhancements import AdversarialRewriter, PerplexitySurrogate, humanize_with_adversarial_rules
+from vip_detector import VIPDetector
+from vip_humanizer import VIPHumanizer
 
 
 class DetectionPipeline:
@@ -130,6 +132,38 @@ class DetectionPipeline:
             self.adversarial_rewriter = AdversarialRewriter(lang='zh' if not is_en else 'en')
 
         return self.adversarial_rewriter.generate_feedback_from_detection(metrics, is_en)
+
+    def detect_for_vip(self, text: str) -> Tuple[int, Optional[Dict]]:
+        """
+        针对维普平台的AI检测
+
+        维普检测特点：
+        - 语义指纹对比：检测AI高频句式
+        - 模式识别：段落结构和论证逻辑
+        - 数据真实性验证：虚构数据检测
+
+        Returns:
+            Tuple of (ai_score, details_dict)
+        """
+        clean_text = strip_latex(text)
+        clean_len = len(clean_text.strip())
+
+        if clean_len < 10:
+            return 0, {'error': 'Text too short for analysis', 'platform': '维普AIGC'}
+
+        # 使用维普专用检测器
+        vip_detector = VIPDetector()
+        return vip_detector.detect(clean_text)
+
+    def humanize_for_vip(self, text: str) -> Tuple[str, List[str]]:
+        """
+        针对维普平台的人类化改写
+
+        Returns:
+            Tuple of (humanized_text, list_of_changes)
+        """
+        vip_humanizer = VIPHumanizer()
+        return vip_humanizer.humanize(text)
 
     def full_pipeline(self, text: str, lang: Optional[str] = None,
                      apply_humanization: bool = False) -> Dict:
