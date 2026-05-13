@@ -6,8 +6,8 @@ import re
 import argparse
 from typing import Dict, Tuple, Optional
 
-from detectors import EnglishDetector, ChineseDetector, VIPDetector
-from humanizers import ChineseHumanizer, VIPHumanizer
+from detectors import EnglishDetector, ChineseDetector
+from humanizers import ChineseHumanizer
 from text_analyzer import TextAnalyzer
 from formatter import strip_latex
 from enhancements import PerplexitySurrogate
@@ -19,8 +19,7 @@ class DetectionPipeline:
 
     整合所有检测功能:
     - 英文文本检测 (EnglishDetector)
-    - 中文文本检测 (ChineseDetector)
-    - 维普专用检测 (VIPDetector)
+    - 中文文本检测 (ChineseDetector，集成知网3.0 + 维普检测维度)
     - 人类化改写 (Humanizers)
     - 文本质量分析 (TextAnalyzer)
     """
@@ -67,7 +66,7 @@ class DetectionPipeline:
         return 'en'
 
     def _detect_chinese(self, text: str) -> Tuple[int, Optional[Dict]]:
-        """检测中文文本 - 使用ChineseDetector"""
+        """检测中文文本 - 使用ChineseDetector（集成知网3.0 + 维普检测维度）"""
         detector = ChineseDetector()
         ai_score, details = detector.detect(text)
 
@@ -99,51 +98,30 @@ class DetectionPipeline:
 
     def detect_for_vip(self, text: str) -> Tuple[int, Optional[Dict]]:
         """
-        针对维普平台的AI检测
-
-        维普检测特点：
-        - 语义指纹对比：检测AI高频句式
-        - 模式识别：段落结构和论证逻辑
-        - 数据真实性验证：虚构数据检测
+        针对维普平台的AI检测（已集成到ChineseDetector中，此为兼容接口）
 
         Returns:
             Tuple of (ai_score, details_dict)
         """
-        clean_text = strip_latex(text)
-        clean_len = len(clean_text.strip())
+        return self.detect(text, lang='zh')
 
-        if clean_len < 10:
-            return 0, {'error': 'Text too short for analysis', 'platform': '维普AIGC'}
-
-        detector = VIPDetector()
-        return detector.detect(clean_text)
-
-    def humanize(self, text: str, platform: str = 'general') -> Tuple[str, list]:
+    def humanize(self, text: str) -> Tuple[str, list]:
         """
         应用人类化改写规则
 
         Args:
             text: 要人类化的文本
-            platform: 目标平台 ('general', 'vip')
 
         Returns:
             Tuple of (rewritten_text, list_of_changes)
         """
-        if platform == 'vip':
-            humanizer = VIPHumanizer()
+        lang = self.lang if self.lang != 'auto' else self._detect_language(text)
+        if lang == 'zh':
+            humanizer = ChineseHumanizer()
         else:
-            lang = self.lang if self.lang != 'auto' else self._detect_language(text)
-            if lang == 'zh':
-                humanizer = ChineseHumanizer()
-            else:
-                # 英文暂时使用中文人类化器（可以后续扩展）
-                humanizer = ChineseHumanizer()
+            humanizer = ChineseHumanizer()
 
         return humanizer.humanize(text)
-
-    def humanize_for_vip(self, text: str) -> Tuple[str, list]:
-        """针对维普平台的人类化改写"""
-        return self.humanize(text, platform='vip')
 
     def analyze_quality(self, text: str, lang: Optional[str] = None) -> Dict:
         """分析文本质量指标"""
@@ -159,8 +137,7 @@ class DetectionPipeline:
                 return {'error': str(e)}
 
     def full_pipeline(self, text: str, lang: Optional[str] = None,
-                     apply_humanization: bool = False,
-                     platform: str = 'general') -> Dict:
+                     apply_humanization: bool = False) -> Dict:
         """
         完整管道: 检测 + 分析 + (可选)人类化
 
@@ -168,30 +145,25 @@ class DetectionPipeline:
             text: 待处理文本
             lang: 语言
             apply_humanization: 是否应用对抗性人类化规则
-            platform: 目标检测平台 ('general' 或 'vip')
 
         Returns:
             Dict with detection results, quality metrics, and optionally humanized text
         """
         target_lang = lang if lang and lang != 'auto' else self._detect_language(text)
 
-        if platform == 'vip':
-            ai_score, details = self.detect_for_vip(text)
-        else:
-            ai_score, details = self.detect(text, target_lang)
+        ai_score, details = self.detect(text, target_lang)
 
         quality_metrics = self.analyze_quality(text, target_lang)
 
         result = {
             'ai_score': ai_score,
             'detected_language': target_lang,
-            'platform': platform,
             'details': details,
             'quality_metrics': quality_metrics
         }
 
         if apply_humanization:
-            humanized, changes = self.humanize(text, platform)
+            humanized, changes = self.humanize(text)
             result['humanized_text'] = humanized
             result['humanization_changes'] = changes
 
@@ -207,7 +179,6 @@ Examples:
   python detection_pipeline.py input.txt
   python detection_pipeline.py input.txt --lang zh
   python detection_pipeline.py input.txt --humanize
-  python detection_pipeline.py input.txt --platform vip
   python detection_pipeline.py input.txt --json
         """
     )
@@ -217,8 +188,6 @@ Examples:
                        help='Language of the text (default: auto)')
     parser.add_argument('--humanize', action='store_true',
                        help='Apply adversarial humanization rules')
-    parser.add_argument('--platform', choices=['general', 'vip'], default='general',
-                       help='Target detection platform (default: general)')
     parser.add_argument('--json', action='store_true',
                        help='Output results as JSON')
 
@@ -243,8 +212,7 @@ Examples:
     result = pipeline.full_pipeline(
         text,
         lang=args.lang if args.lang != 'auto' else None,
-        apply_humanization=args.humanize,
-        platform=args.platform
+        apply_humanization=args.humanize
     )
 
     if args.json:
@@ -252,7 +220,7 @@ Examples:
         print(json.dumps(result, indent=2, ensure_ascii=False))
     else:
         print("=" * 70)
-        print(f"AI DETECTION RESULTS ({args.platform.upper()})")
+        print("AI DETECTION RESULTS")
         print("=" * 70)
         print(f"Detected Language: {result['detected_language'].upper()}")
         print(f"AI Score: {result['ai_score']}/100")

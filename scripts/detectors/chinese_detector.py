@@ -214,6 +214,41 @@ class ChineseDetector(BaseDetector):
         r'旨在[^，。]{2,40}',
     ]
 
+    VIP_SEMANTIC_FINGERPRINTS = [
+        r'首先[^，。]{0,15}[，。]其次[^，。]{0,15}[，。](?:再次|最后|此外)',
+        r'第一[^，。]{0,10}[，。]第二[^，。]{0,10}[，。]第三',
+        r'一方面[^，。]{2,15}[，。]另一方面[^，。]{2,15}[，。]此外',
+        r'随着[^的]+的发展[,，]',
+        r'基于[^的]+的研究[,，]',
+        r'在当前背景下[,，]',
+        r'近年来[,，]',
+        r'众所周知[,，]',
+        r'综上所述[,，]',
+        r'总而言之[,，]',
+        r'由此可见[,，]',
+        r'总之[,，]',
+    ]
+
+    VIP_MECHANICAL_PATTERNS = [
+        r'(?:首先|第一)[^，。]{5,30}重要性[^，。]{2,15}[，。]',
+        r'(?:其次|第二)[^，。]{5,30}挑战[^，。]{2,15}[，。]',
+        r'(?:最后|第三)[^，。]{5,30}对策[^，。]{2,15}[，。]',
+        r'存在[^，。]{3,15}问题[,，](?:因此|所以|为此)',
+        r'面临[^，。]{3,15}困境[,，](?:本文|本研究|本文提出)',
+        r'针对[^，。]{3,15}不足[,，](?:本文|本研究)',
+        r'本文(?:旨在|研究|探讨|分析)[^，。]{5,30}具有(?:重要|现实|理论)意义',
+        r'本研究的(?:目的|意义)是[^，。]{5,30}具有(?:重要|现实|理论)意义',
+        r'国内外学者[^，。]{0,30}进行了[^，。]{0,30}研究[,，]',
+        r'目前[^，。]{0,30}研究[^，。]{0,30}但[^，。]{0,30}不足',
+    ]
+
+    VIP_DATA_PATTERNS = [
+        r'\d{4}年[^，。]{0,20}(?:增长|提高|下降|减少|上升)[^，。]{0,20}\d+(?:\.\d+)?%',
+        r'(?:高达|约为|接近|约)\d+(?:\.\d+)?%',
+        r'(?:显著|明显|大幅|急剧)(?:增长|提高|下降|减少)',
+        r'\d+倍[^，。]{0,10}(?:增长|提高|下降)',
+    ]
+
     def __init__(self):
         super().__init__(name="Chinese AI Detector")
 
@@ -258,6 +293,10 @@ class ChineseDetector(BaseDetector):
         score, details = self._analyze_sentence_structure_pattern(sentences, text, score, details)
         score, details = self._analyze_role_playing_pattern(text, score, details)
         score, details = self._analyze_premise_conclusion_pattern(text, score, details)
+
+        score, details = self._analyze_vip_semantic_fingerprints(text, score, details)
+        score, details = self._analyze_vip_mechanical_patterns(text, score, details)
+        score, details = self._analyze_vip_data_authenticity(text, score, details)
 
         final_score = min(100, max(0, score))
         details['overall_score'] = final_score
@@ -1137,6 +1176,83 @@ class ChineseDetector(BaseDetector):
             'count': total_count,
             'score': metric_score,
             'details': f'"因此...是...前提/基础/关键" {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_vip_semantic_fingerprints(self, text: str, score: int,
+                                          details: Dict) -> Tuple[int, Dict]:
+        fingerprint_count = 0
+        matched_patterns = []
+
+        for pattern in self.VIP_SEMANTIC_FINGERPRINTS:
+            matches = re.findall(pattern, text)
+            if matches:
+                fingerprint_count += len(matches)
+                matched_patterns.append(pattern[:30] + '...')
+
+        metric_score = 0
+        if fingerprint_count >= 5:
+            metric_score = 30
+        elif fingerprint_count >= 3:
+            metric_score = 20
+        elif fingerprint_count >= 1:
+            metric_score = 10
+
+        details['metrics']['vip_semantic_fingerprint'] = {
+            'count': fingerprint_count,
+            'patterns': matched_patterns[:3],
+            'score': metric_score,
+            'details': f'维普语义指纹 {fingerprint_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_vip_mechanical_patterns(self, text: str, score: int,
+                                        details: Dict) -> Tuple[int, Dict]:
+        mechanical_count = 0
+
+        for pattern in self.VIP_MECHANICAL_PATTERNS:
+            matches = re.findall(pattern, text)
+            if matches:
+                mechanical_count += len(matches)
+
+        metric_score = 0
+        if mechanical_count >= 4:
+            metric_score = 35
+        elif mechanical_count >= 2:
+            metric_score = 20
+        elif mechanical_count >= 1:
+            metric_score = 10
+
+        details['metrics']['vip_mechanical_pattern'] = {
+            'count': mechanical_count,
+            'score': metric_score,
+            'details': f'维普机械论证模式 {mechanical_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_vip_data_authenticity(self, text: str, score: int,
+                                      details: Dict) -> Tuple[int, Dict]:
+        suspicious_count = 0
+        for pattern in self.VIP_DATA_PATTERNS:
+            matches = re.findall(pattern, text)
+            suspicious_count += len(matches)
+
+        precise_numbers = re.findall(r'\d+\.\d{2,}', text)
+        suspicious_count += len(precise_numbers)
+
+        metric_score = 0
+        if suspicious_count >= 5:
+            metric_score = 20
+        elif suspicious_count >= 3:
+            metric_score = 12
+
+        details['metrics']['vip_data_authenticity'] = {
+            'count': suspicious_count,
+            'score': metric_score,
+            'details': f'维普数据真实性 {suspicious_count} 处可疑数据'
         }
 
         return score + metric_score, details
