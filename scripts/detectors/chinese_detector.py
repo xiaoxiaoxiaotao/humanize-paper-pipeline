@@ -25,8 +25,9 @@ class ChineseDetector(BaseDetector):
         '然而', '因此', '此外', '另外', '同时',
         '从而', '进而', '与此同时', '不仅如此',
         '进一步说', '换言之', '简而言之',
-        '本文', '本研究', '总之', '总而言之',
+        '本文', '本研究', '本文旨在', '本文拟', '总之', '总而言之',
         '由此可见', '显然', '毫无疑问',
+        '旨在', '可分为', '大致可分为', '主要包括', '具体包括',
     ]
 
     ABSTRACT_PHRASES = [
@@ -52,6 +53,11 @@ class ChineseDetector(BaseDetector):
         r'通过[^，。]{2,40}的[^，。]{2,40}',
         r'因此[^，。]{2,40}具有重要意义',
         r'利用[^，。]{2,40}的[^，。]{2,40}',
+        r'旨在[^，。]{2,40}',
+        r'大致可分为[^，。]{2,40}',
+        r'可分为[^，。]{2,20}：',
+        r'以下[^，。]{2,30}阐述',
+        r'是[^，。]{2,30}之一',
     ]
 
     HEDGE_WORDS = [
@@ -692,17 +698,27 @@ class ChineseDetector(BaseDetector):
 
     def _analyze_definition_pattern(self, text: str, score: int,
                                    details: Dict) -> Tuple[int, Dict]:
-        pattern = r'是[\u4e00-\u9fa5]{2,20}的[\u4e00-\u9fa5]{2,20}'
-        matches = re.findall(pattern, text)
-        count = len(matches)
+        patterns = [
+            r'是[\u4e00-\u9fa5]{2,20}的[\u4e00-\u9fa5]{2,20}',
+            r'是指[\u4e00-\u9fa5]{2,40}的[\u4e00-\u9fa5]{2,20}',
+            r'是[\u4e00-\u9fa5]{2,20}之一',
+        ]
+        seen_spans = set()
+        count = 0
+        for p in patterns:
+            for m in re.finditer(p, text):
+                span = (m.start(), m.end())
+                if span not in seen_spans:
+                    seen_spans.add(span)
+                    count += 1
 
         metric_score = 0
         if count >= 3:
-            metric_score = 12
+            metric_score = 14
         elif count >= 2:
-            metric_score = 8
+            metric_score = 10
         elif count >= 1:
-            metric_score = 4
+            metric_score = 5
 
         details['metrics']['definition_pattern'] = {
             'count': count,
