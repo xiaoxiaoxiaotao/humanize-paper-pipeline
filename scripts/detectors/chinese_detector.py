@@ -1044,10 +1044,11 @@ class ChineseDetector(BaseDetector):
         end_ratio = end_citations / total_citations if total_citations > 0 else 0
 
         metric_score = 0
-        if end_ratio > 0.8 and total_citations >= 3:
-            metric_score = 10
-        elif end_ratio > 0.6 and total_citations >= 2:
-            metric_score = 5
+        # 提高阈值，减少对引用在句末的惩罚
+        if end_ratio > 0.9 and total_citations >= 4:
+            metric_score = 8
+        elif end_ratio > 0.8 and total_citations >= 3:
+            metric_score = 4
 
         details['metrics']['citation_distribution'] = {
             'total_citations': total_citations,
