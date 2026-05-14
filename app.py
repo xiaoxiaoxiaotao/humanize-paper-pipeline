@@ -647,6 +647,21 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 
     {extra_tone_en}
 
+    [CRITICAL - Content Fidelity Principle]:
+    - You MUST preserve ALL substantive information from the original text, including arguments, methods, results, data, and conclusions.
+    - Your task is to change HOW information is expressed, not WHAT information is conveyed.
+    - The rewritten text should be approximately the same length as the original.
+    
+    [ABSOLUTE PROHIBITION - No New Content]:
+    - NEVER add new arguments, viewpoints, or conclusions not present in the original.
+    - NEVER fabricate data, experimental results, or performance metrics not in the original.
+    - NEVER add examples, cases, or applications not mentioned in the original.
+    - NEVER add explanations, background knowledge, or technical details not in the original.
+    - NEVER introduce technical terms, method names, or algorithm names not in the original.
+    - You can only change expression style, NOT add information. If original says "significant improvement", you can say "notable improvement", but NOT "30% improvement" (unless original has this data).
+    - If a concept is briefly explained in original, keep it brief in rewrite - do NOT supplement explanations.
+    - Verification: After rewriting, check each sentence to ensure it has a corresponding information source in the original. If not found, you added new content - DELETE IT.
+
     Apply the following core strategies:
     1. Vary Sentence Rhythm (Burstiness): Mix short punchy sentences (5-10 words) with medium (15-20) and long complex ones (25-35+). Break up uniform sentence lengths.
     2. Reduce Abstract Scaffolding: Remove vague placeholder phrases like "various aspects", "in terms of", "multiple factors". Replace them with specific concepts, named theories, or concrete examples.
@@ -668,6 +683,16 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     - 润色后必须保留原文所有实质性信息，包括论点、实验方法、实验结果、数据指标、结论。不得遗漏任何事实性内容。
     - 润色的目的是改写表达方式，而非删减内容。
     - 润色后字数应与原文大致相当，不得大幅缩水。
+    
+    【严禁添加新内容——这是红线】：
+    - 绝对禁止添加原文没有的新论点、新观点、新结论。
+    - 绝对禁止编造原文没有的数据、实验结果、性能指标。
+    - 绝对禁止添加原文没有的例子、案例、应用场景。
+    - 绝对禁止添加原文没有的解释、背景知识、技术细节。
+    - 绝对禁止引入原文没有的专业术语、方法名称、算法名称。
+    - 改写只能改变表达方式，不能增加信息量。如果原文说"效果显著"，改写后可以说"效果明显"，但不能说"效果提升了30%"（除非原文有这个数据）。
+    - 如果原文某个概念解释得简略，改写后也必须保持简略，不能自己补充解释。
+    - 检查方法：改写完成后，逐句检查每一句话是否都能在原文中找到对应的信息来源。如果找不到，说明你添加了新内容，必须删除。
 
     请应用以下核心策略：
     1. 增加句式错落感（Burstiness）：打破平均句长的均匀分布，交叉使用长短句。注意：长短句都要有完整信息量，不是为了短而短。
