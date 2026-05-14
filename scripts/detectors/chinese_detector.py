@@ -214,6 +214,45 @@ class ChineseDetector(BaseDetector):
         r'旨在[^，。]{2,40}',
     ]
 
+    # AI技术文本特有的检测模式 - 关注结构和表达方式而非专有名词
+    TECHNICAL_PATTERNS = [
+        # 被动语态模式
+        r'[被为][\u4e00-\u9fa5]{1,10}[所的]',
+        # 算法组成描述
+        r'(?:由|包括|包含)[^，。]{2,40}(?:组成|构成|构成的)',
+        # 功能职责描述
+        r'(?:负责|用于|用来|旨在)[^，。]{2,40}',
+        # 方法手段描述
+        r'(?:通过|利用|基于)[^，。]{2,40}(?:方式|方法|算法|网络)',
+        # 解决问题模板
+        r'(?:解决|克服|突破)[^，。]{2,30}(?:瓶颈|问题|挑战)',
+        # 性能提升描述
+        r'(?:提升|提高|优化)[^，。]{2,30}(?:性能|效率|精度)',
+        # 技术对比模板
+        r'(?:相比|相较于|不同于)[^，。]{2,30}(?:传统|以往|现有的)',
+        # 损失函数描述
+        r'(?:损失函数|Loss)[^，。]{2,30}(?:交叉熵|Softmax|Smooth|L1|L2)',
+        # 网络结构描述
+        r'(?:网络|模型)[^，。]{2,30}(?:由.*组成|包括.*层)',
+        # 端到端训练描述
+        r'(?:端到端|端-端)[^，。]{0,20}(?:训练|学习|优化)',
+        # 共享特征描述
+        r'(?:共享|共用)[^，。]{2,20}(?:特征|权重|参数)',
+        # 并行结构描述
+        r'(?:并行|同时)[^，。]{2,20}(?:进行|执行|处理)',
+        # 协同工作描述
+        r'(?:协同|联合)[^，。]{2,20}(?:工作|训练|优化)',
+    ]
+
+    CHAIN_DESCRIPTION_PATTERNS = [
+        # 链式描述："它...，它..."
+        r'它[^，。]{2,30}[，,]它[^，。]{2,30}',
+        # 连续被动
+        r'被[^，。]{2,20}[，,][被为][^，。]{2,20}',
+        # 重复的连接词
+        r'(?:通过|利用|基于)[^，。]{2,30}[，,](?:通过|利用|基于)',
+    ]
+
     VIP_SEMANTIC_FINGERPRINTS = [
         r'首先[^，。]{0,15}[，。]其次[^，。]{0,15}[，。](?:再次|最后|此外)',
         r'第一[^，。]{0,10}[，。]第二[^，。]{0,10}[，。]第三',
@@ -297,6 +336,12 @@ class ChineseDetector(BaseDetector):
         score, details = self._analyze_vip_semantic_fingerprints(text, score, details)
         score, details = self._analyze_vip_mechanical_patterns(text, score, details)
         score, details = self._analyze_vip_data_authenticity(text, score, details)
+
+        # 新增技术文本特征检测
+        score, details = self._analyze_technical_patterns(text, score, details)
+        score, details = self._analyze_chain_description(text, score, details)
+        score, details = self._analyze_passive_voice_density(text, sentences, score, details)
+        score, details = self._analyze_sentence_complexity(text, sentences, score, details)
 
         final_score = min(100, max(0, score))
         details['overall_score'] = final_score
@@ -1253,6 +1298,128 @@ class ChineseDetector(BaseDetector):
             'count': suspicious_count,
             'score': metric_score,
             'details': f'维普数据真实性 {suspicious_count} 处可疑数据'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_technical_patterns(self, text: str, score: int,
+                                    details: Dict) -> Tuple[int, Dict]:
+        total_count = 0
+        matched_patterns = []
+
+        for pattern in self.TECHNICAL_PATTERNS:
+            matches = re.findall(pattern, text)
+            if matches:
+                total_count += len(matches)
+                matched_patterns.append(pattern)
+
+        metric_score = 0
+        if total_count >= 6:
+            metric_score = 18
+        elif total_count >= 4:
+            metric_score = 12
+        elif total_count >= 2:
+            metric_score = 6
+        elif total_count >= 1:
+            metric_score = 3
+
+        details['metrics']['technical_patterns'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'技术文本模式 {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_chain_description(self, text: str, score: int,
+                                   details: Dict) -> Tuple[int, Dict]:
+        total_count = 0
+        for pattern in self.CHAIN_DESCRIPTION_PATTERNS:
+            matches = re.findall(pattern, text)
+            total_count += len(matches)
+
+        metric_score = 0
+        if total_count >= 3:
+            metric_score = 15
+        elif total_count >= 2:
+            metric_score = 10
+        elif total_count >= 1:
+            metric_score = 5
+
+        details['metrics']['chain_description'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'链式描述模式 {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_passive_voice_density(self, text: str, sentences: List[str],
+                                       score: int, details: Dict) -> Tuple[int, Dict]:
+        if len(sentences) < 2:
+            return score, details
+
+        passive_patterns = [
+            r'被[\u4e00-\u9fa5]{1,15}[所的]',
+            r'为[\u4e00-\u9fa5]{1,15}[所的]',
+            r'予以[\u4e00-\u9fa5]{1,10}',
+            r'得以[\u4e00-\u9fa5]{1,10}',
+            r'可[\u4e00-\u9fa5]{1,10}的',
+        ]
+
+        passive_count = 0
+        for pattern in passive_patterns:
+            matches = re.findall(pattern, text)
+            passive_count += len(matches)
+
+        passive_ratio = passive_count / len(sentences) if len(sentences) > 0 else 0
+
+        metric_score = 0
+        if passive_ratio > 0.5:
+            metric_score = 15
+        elif passive_ratio > 0.35:
+            metric_score = 10
+        elif passive_ratio > 0.2:
+            metric_score = 5
+
+        details['metrics']['passive_voice_density'] = {
+            'count': passive_count,
+            'ratio': round(passive_ratio, 2),
+            'score': metric_score,
+            'details': f'被动语态密度 {passive_count}处/{len(sentences)}句'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_sentence_complexity(self, text: str, sentences: List[str],
+                                     score: int, details: Dict) -> Tuple[int, Dict]:
+        if len(sentences) < 2:
+            return score, details
+
+        complex_count = 0
+        for sent in sentences:
+            # 长句 (>60字符)
+            if len(sent) > 60:
+                comma_count = sent.count('，') + sent.count(',')
+                # 复杂长句：超过60字符且逗号数>=3
+                if comma_count >= 3:
+                    complex_count += 1
+
+        complex_ratio = complex_count / len(sentences) if len(sentences) > 0 else 0
+
+        metric_score = 0
+        if complex_ratio > 0.6:
+            metric_score = 15
+        elif complex_ratio > 0.4:
+            metric_score = 10
+        elif complex_ratio > 0.25:
+            metric_score = 5
+
+        details['metrics']['sentence_complexity'] = {
+            'complex_count': complex_count,
+            'ratio': round(complex_ratio, 2),
+            'score': metric_score,
+            'details': f'复杂长句比例 {complex_ratio*100:.0f}%'
         }
 
         return score + metric_score, details
