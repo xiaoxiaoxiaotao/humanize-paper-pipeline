@@ -992,9 +992,11 @@ with st.sidebar:
     )
 
 st.subheader("Input Text")
-input_text = st.text_area("在此粘贴需要润色的段落 (包含LaTeX公式请保留 $ 或 $$)：", height=200)
+with st.form("input_form"):
+    input_text = st.text_area("在此粘贴需要润色的段落 (包含LaTeX公式请保留 $ 或 $$)：", height=200)
+    submitted = st.form_submit_button("🚀 运行 Humanize Pipeline")
 
-if st.button("🚀 运行 Humanize Pipeline"):
+if submitted:
     if not api_key:
         st.error("请输入 API Key")
     elif not input_text.strip():
