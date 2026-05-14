@@ -808,8 +808,9 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
             current_quality = calculate_quality_metrics(revised, lang)
             quality_warning = check_quality_degradation(original_quality, current_quality)
 
-            if all_pass:
-                st.success(f"✅ 所有 {len(thresholds)} 项检测指标均已通过阈值！共迭代 {round_num} 轮。")
+            # 双重达标条件：所有子指标通过 且 总分低于35
+            if all_pass and ai_score < 35:
+                st.success(f"✅ 所有 {len(thresholds)} 项检测指标均已通过阈值，且总分 {ai_score} < 35！共迭代 {round_num} 轮。")
                 break
 
             if quality_warning:
@@ -817,14 +818,23 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 
             if round_num < MAX_ROUNDS:
                 feedback_str = generate_metric_feedback(ai_details, thresholds, is_en)
+                # 如果子指标都通过但总分还太高，添加总分优化提示
+                if all_pass and ai_score >= 35:
+                    if is_en:
+                        feedback_str += f"\n\n[Overall Score Alert]: All sub-metrics pass, but overall AI score is still {ai_score} (target < 35). Continue reducing AI patterns to lower the total score."
+                    else:
+                        feedback_str += f"\n\n【总分优化提示】: 所有子指标均已通过，但总体AI分数仍为 {ai_score}（目标 < 35）。请继续减少AI痕迹，进一步降低总分。"
                 if quality_warning:
                     feedback_str += "\n\n" + get_quality_preservation_prompt(is_en)
                 messages.append({"role": "user", "content": feedback_str})
             else:
                 failing = get_failing_metrics(ai_details, thresholds)
-                st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，仍有 {len(failing)} 项指标未通过。建议手动微调。")
-                for m in failing:
-                    st.warning(f"   ❌ {m['description']}: {m['current_score']}分 (阈值: ≤{m['max_score']}分)")
+                if all_pass and ai_score >= 35:
+                    st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，所有子指标已通过，但总分 {ai_score} 仍 ≥ 35。建议手动微调降低总分。")
+                else:
+                    st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，仍有 {len(failing)} 项指标未通过。建议手动微调。")
+                    for m in failing:
+                        st.warning(f"   ❌ {m['description']}: {m['current_score']}分 (阈值: ≤{m['max_score']}分)")
 
         if lang == "Chinese":
             revised = format_clean_chinese(revised)
