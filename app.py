@@ -129,6 +129,8 @@ CHINESE_METRIC_THRESHOLDS = {
     'definition_pattern': {'max_score': 6, 'max_count': 1, 'description': '"是...的"定义式'},
     'em_dash_overuse': {'max_score': 4, 'max_count': 1, 'description': '破折号滥用'},
     'citation_distribution': {'max_score': 8, 'description': '引用分布'},
+    'absolute_language': {'max_score': 10, 'max_count': 2, 'description': '绝对化语言'},
+    'verbose_expressions': {'max_score': 10, 'max_count': 3, 'description': '冗长表达'},
 }
 
 ENGLISH_METRIC_THRESHOLDS = {
@@ -435,6 +437,24 @@ CHINESE_METRIC_FEEDBACK = {
         "修复方案：将部分引用移到句中或句首。"
         "如'[1]的研究表明...'或'根据[2]的方法，我们...'。"
         "不要所有引用都放在句末括号里。"
+    ),
+    'absolute_language': (
+        "【绝对化语言过多】检测到过多绝对化表述"
+        "（如'毫无疑问'、'显然'、'必然'、'一定'、'必须'、'只能'、'唯一'等）。"
+        "AI倾向于使用过于绝对的语言来增强说服力，但这在学术写作中是不严谨的。\n"
+        "修复方案：将绝对化表述改为更谨慎、更客观的表述。"
+        "'毫无疑问'→'有充分证据表明'；'显然'→'可以看出'；"
+        "'必然'→'往往会'；'一定'→'通常'；'必须'→'需要'。"
+        "学术写作应该保持适度的谨慎和客观性。"
+    ),
+    'verbose_expressions': (
+        "【冗长表达过多】检测到大量冗长、啰嗦的表达方式"
+        "（如'在...过程中'、'从...角度来看'、'就...而言'、'通过...的方式'等）。"
+        "AI倾向于使用这些冗长的套话来填充字数，使文本显得啰嗦而不简洁。\n"
+        "修复方案：将冗长表达简化为更直接、更简洁的表述。"
+        "'在X过程中'→'X时'；'从X角度来看'→'从X看'；"
+        "'就X而言'→'对X'；'通过X的方式'→'通过X'。"
+        "学术写作应该追求简洁明了，避免不必要的修饰。"
     ),
 }
 
@@ -795,6 +815,9 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
                         details_str = metric_data.get('details', '')
                         st.write(f"{status} {desc}: {metric_score}分 (阈值≤{max_score}) — {details_str}")
                     st.write(f"---\n通过: {pass_count}/{len(thresholds)} | 未通过: {fail_count}/{len(thresholds)}")
+                    
+                    with st.expander("📄 查看本轮修复后的文本"):
+                        st.text_area(f"第{round_num}轮修复文本", revised, height=300, key=f"revised_text_round_{round_num}")
 
             if HAS_PIPELINE and lang == "English" and round_num == 1:
                 try:
