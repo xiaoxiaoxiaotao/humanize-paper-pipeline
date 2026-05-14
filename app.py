@@ -13,6 +13,13 @@ try:
 except ImportError:
     HAS_PIPELINE = False
 
+st.set_page_config(
+    page_title="Humanize Academic Paper",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 
 def calculate_ai_rate(text, lang):
     """
@@ -992,11 +999,26 @@ with st.sidebar:
     )
 
 st.subheader("Input Text")
-with st.form("input_form"):
-    input_text = st.text_area("在此粘贴需要润色的段落 (包含LaTeX公式请保留 $ 或 $$)：", height=200)
-    submitted = st.form_submit_button("🚀 运行 Humanize Pipeline")
 
-if submitted:
+if 'input_text' not in st.session_state:
+    st.session_state.input_text = ""
+
+def clear_input():
+    st.session_state.input_text = ""
+
+input_text = st.text_area(
+    "在此粘贴需要润色的段落 (包含LaTeX公式请保留 $ 或 $$)：", 
+    height=200,
+    key="input_text"
+)
+
+col1, col2 = st.columns([1, 5])
+with col1:
+    run_button = st.button("🚀 运行 Humanize Pipeline")
+with col2:
+    clear_button = st.button("🗑️ 清除输入", on_click=clear_input)
+
+if run_button:
     if not api_key:
         st.error("请输入 API Key")
     elif not input_text.strip():
