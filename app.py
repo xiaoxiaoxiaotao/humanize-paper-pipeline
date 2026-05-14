@@ -278,22 +278,73 @@ def check_quality_degradation(original: dict, current: dict) -> str:
     return "；".join(warnings)
 
 
-def get_quality_preservation_prompt(is_en: bool) -> str:
-    """返回质量保持提示"""
+def get_quality_preservation_prompt(quality_warning: str, is_en: bool) -> str:
+    """根据具体的质量下降问题生成针对性的提示"""
     if is_en:
-        return (
-            "[Quality Preservation]: The rewriting has degraded text quality significantly. "
-            "Please restore the original information content while maintaining the AI pattern fixes. "
-            "Ensure the text length is comparable to the original and vocabulary diversity is preserved."
+        base_prompt = (
+            "[Quality Preservation Alert]: The rewriting has degraded text quality. "
+            "Please address the following specific issues while maintaining the AI pattern fixes:\n\n"
         )
-    return (
-        "【质量保持警告】: 上一轮改写导致文本质量下降。请在修复AI痕迹的同时，务必：\n"
-        "1. 恢复被删减的实质性内容（论点、数据、方法、结论）\n"
-        "2. 保持原文长度，不得大幅缩写\n"
-        "3. 保持用词多样性，不要过度简化\n"
-        "4. 保持适当的句长变化，不要全部切成短句\n"
-        "5. 确保学术信息的完整性和准确性"
+        
+        specific_prompts = []
+        if "length" in quality_warning.lower() or "缩" in quality_warning:
+            specific_prompts.append(
+                "• Text Length Issue: The rewritten text is significantly shorter than the original. "
+                "This suggests content deletion. Solution: Restore the deleted substantive content. "
+                "Every technical detail, argument, and conclusion from the original must be preserved."
+            )
+        if "diversity" in quality_warning.lower() or "多样性" in quality_warning:
+            specific_prompts.append(
+                "• Vocabulary Diversity Issue: The rewritten text uses a more limited vocabulary. "
+                "Solution: Use more varied vocabulary. Replace repeated words with synonyms. "
+                "Introduce domain-specific terminology that was present in the original."
+            )
+        if "sentence" in quality_warning.lower() or "句" in quality_warning:
+            specific_prompts.append(
+                "• Sentence Length Issue: The rewritten sentences are too short and fragmented. "
+                "Solution: Maintain a mix of sentence lengths. Keep some longer, complex sentences "
+                "(30-50 words) that contain detailed technical information. Don't break everything into short, simple sentences."
+            )
+        
+        if not specific_prompts:
+            specific_prompts.append(
+                "• General Quality Issue: Restore the original information content while maintaining the AI pattern fixes. "
+                "Ensure the text length is comparable to the original and vocabulary diversity is preserved."
+            )
+        
+        return base_prompt + "\n".join(specific_prompts)
+    
+    base_prompt = (
+        "【质量保持警告】: 上一轮改写导致文本质量下降。请在修复AI痕迹的同时，针对性地解决以下问题：\n\n"
     )
+    
+    specific_prompts = []
+    if "长度" in quality_warning or "缩" in quality_warning:
+        specific_prompts.append(
+            "1. 【文本长度问题】: 改写后文本长度显著缩短，说明有内容被删除。\n"
+            "   解决方案：恢复被删减的实质性内容。原文中的每个技术细节、论点、结论都必须保留，不能遗漏。"
+        )
+    if "多样性" in quality_warning:
+        specific_prompts.append(
+            "2. 【词汇多样性问题】: 改写后使用的词汇种类减少，表达变得单调。\n"
+            "   解决方案：丰富用词，使用更多样化的词汇表达。用同义词替换重复的词语，引入原文中出现的专业术语。"
+        )
+    if "句长" in quality_warning or "碎片化" in quality_warning:
+        specific_prompts.append(
+            "3. 【句长问题】: 改写后句子过短、过于碎片化，失去了原文的复杂性和深度。\n"
+            "   解决方案：保持句长变化，保留一些包含详细技术信息的长句（30-50字）。不要把所有句子都切成短句，这样会丢失学术文本的严谨性。"
+        )
+    
+    if not specific_prompts:
+        specific_prompts.append(
+            "1. 恢复被删减的实质性内容（论点、数据、方法、结论）\n"
+            "2. 保持原文长度，不得大幅缩写\n"
+            "3. 保持用词多样性，不要过度简化\n"
+            "4. 保持适当的句长变化，不要全部切成短句\n"
+            "5. 确保学术信息的完整性和准确性"
+        )
+    
+    return base_prompt + "\n".join(specific_prompts)
 
 
 # ============================================================
@@ -882,7 +933,7 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
                     else:
                         feedback_str += f"\n\n【总分优化提示】: 所有子指标均已通过，但总体AI分数仍为 {ai_score}（目标 < 35）。请继续减少AI痕迹，进一步降低总分。"
                 if quality_warning:
-                    feedback_str += "\n\n" + get_quality_preservation_prompt(is_en)
+                    feedback_str += "\n\n" + get_quality_preservation_prompt(quality_warning, is_en)
                 messages.append({"role": "user", "content": feedback_str})
             else:
                 failing = get_failing_metrics(ai_details, thresholds)
