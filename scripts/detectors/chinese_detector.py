@@ -372,15 +372,28 @@ class ChineseDetector(BaseDetector):
         ai_peak_ratio = ai_peak_count / len(lengths)
 
         metric_score = 0
-        if ai_peak_ratio > 0.7:
-            metric_score += 15
-        elif ai_peak_ratio > 0.55:
-            metric_score += 8
+        # 短文本（<5句）降低敏感度
+        if len(lengths) >= 5:
+            if ai_peak_ratio > 0.7:
+                metric_score += 15
+            elif ai_peak_ratio > 0.55:
+                metric_score += 8
 
-        if cv < 0.25:
-            metric_score += 12
-        elif cv < 0.35:
-            metric_score += 6
+            if cv < 0.25:
+                metric_score += 12
+            elif cv < 0.35:
+                metric_score += 6
+        else:
+            # 短文本需要更严格的条件
+            if ai_peak_ratio > 0.85:
+                metric_score += 8
+            elif ai_peak_ratio > 0.75:
+                metric_score += 4
+
+            if cv < 0.18:
+                metric_score += 6
+            elif cv < 0.28:
+                metric_score += 3
 
         details['metrics']['sentence_length_distribution'] = {
             'avg_length': round(avg_len, 1),
@@ -511,10 +524,17 @@ class ChineseDetector(BaseDetector):
                 uniformity_score = 1 - gap_cv
 
         metric_score = 0
-        if density_per_1000 > 12:
-            metric_score += 12
-        elif density_per_1000 > 8:
-            metric_score += 6
+        # 短文本（<100字）降低密度敏感度
+        if len(text) >= 100:
+            if density_per_1000 > 12:
+                metric_score += 12
+            elif density_per_1000 > 8:
+                metric_score += 6
+        else:
+            if density_per_1000 > 20:
+                metric_score += 8
+            elif density_per_1000 > 15:
+                metric_score += 4
 
         if uniformity_score > 0.85:
             metric_score += 10
@@ -543,18 +563,32 @@ class ChineseDetector(BaseDetector):
         variance_ratio = std_dev / avg_len if avg_len > 0 else 0
 
         metric_score = 0
-        if avg_len < 30:
-            if variance_ratio < 0.18:
-                metric_score = 15
-            elif variance_ratio < 0.25:
-                metric_score = 10
-            elif variance_ratio < 0.35:
-                metric_score = 5
+        # 短文本（<5句）降低敏感度
+        if len(sentences) >= 5:
+            if avg_len < 30:
+                if variance_ratio < 0.18:
+                    metric_score = 15
+                elif variance_ratio < 0.25:
+                    metric_score = 10
+                elif variance_ratio < 0.35:
+                    metric_score = 5
+            else:
+                if variance_ratio < 0.25:
+                    metric_score = 12
+                elif variance_ratio < 0.35:
+                    metric_score = 7
         else:
-            if variance_ratio < 0.25:
-                metric_score = 12
-            elif variance_ratio < 0.35:
-                metric_score = 7
+            # 短文本需要更严格的条件
+            if avg_len < 30:
+                if variance_ratio < 0.15:
+                    metric_score = 10
+                elif variance_ratio < 0.20:
+                    metric_score = 6
+            else:
+                if variance_ratio < 0.20:
+                    metric_score = 8
+                elif variance_ratio < 0.30:
+                    metric_score = 4
 
         details['metrics']['sentence_uniformity'] = {
             'avg_length': round(avg_len, 1),
@@ -643,12 +677,22 @@ class ChineseDetector(BaseDetector):
         template_count = self.detect_repeated_patterns(text, self.TEMPLATE_PATTERNS)
 
         metric_score = 0
-        if template_count >= 3:
-            metric_score = 15
-        elif template_count >= 2:
-            metric_score = 10
-        elif template_count >= 1:
-            metric_score = 5
+        # 短文本（<100字）降低敏感度
+        text_len = len(text)
+        if text_len >= 100:
+            if template_count >= 3:
+                metric_score = 15
+            elif template_count >= 2:
+                metric_score = 10
+            elif template_count >= 1:
+                metric_score = 5
+        else:
+            if template_count >= 4:
+                metric_score = 10
+            elif template_count >= 2:
+                metric_score = 6
+            elif template_count >= 1:
+                metric_score = 3
 
         details['metrics']['templates'] = {
             'count': template_count,
@@ -683,10 +727,17 @@ class ChineseDetector(BaseDetector):
         cv = std_count / avg_count if avg_count > 0 else 0
 
         metric_score = 0
-        if cv < 0.6:
-            metric_score = 10
-        elif cv < 0.8:
-            metric_score = 6
+        # 短文本（<100字）降低敏感度
+        if len(text) >= 100:
+            if cv < 0.6:
+                metric_score = 10
+            elif cv < 0.8:
+                metric_score = 6
+        else:
+            if cv < 0.5:
+                metric_score = 8
+            elif cv < 0.7:
+                metric_score = 4
 
         details['metrics']['word_burstiness'] = {
             'cv': round(cv, 3),
@@ -928,12 +979,14 @@ class ChineseDetector(BaseDetector):
                     count += 1
 
         metric_score = 0
-        if count >= 3:
-            metric_score = 14
+        if count >= 4:
+            metric_score = 20
+        elif count >= 3:
+            metric_score = 16
         elif count >= 2:
-            metric_score = 10
+            metric_score = 12
         elif count >= 1:
-            metric_score = 5
+            metric_score = 6
 
         details['metrics']['definition_pattern'] = {
             'count': count,
@@ -1099,7 +1152,11 @@ class ChineseDetector(BaseDetector):
             total_count += len(matches)
 
         metric_score = 0
-        if total_count >= 3:
+        if total_count >= 6:
+            metric_score = 18
+        elif total_count >= 4:
+            metric_score = 14
+        elif total_count >= 3:
             metric_score = 10
         elif total_count >= 2:
             metric_score = 6
@@ -1142,13 +1199,22 @@ class ChineseDetector(BaseDetector):
             most_common_pattern, count = counter.most_common(1)[0]
             pattern_ratio = count / len(structure_patterns)
 
+            # 短文本（<5句）降低敏感度
+            sentence_count = len(structure_patterns)
             metric_score = 0
-            if pattern_ratio > 0.75:
-                metric_score = 12
-            elif pattern_ratio > 0.6:
-                metric_score = 7
-            elif pattern_ratio > 0.5:
-                metric_score = 3
+            if sentence_count >= 5:
+                if pattern_ratio > 0.75:
+                    metric_score = 12
+                elif pattern_ratio > 0.6:
+                    metric_score = 7
+                elif pattern_ratio > 0.5:
+                    metric_score = 3
+            else:
+                # 短文本需要更高的重复率才扣分
+                if pattern_ratio > 0.85:
+                    metric_score = 8
+                elif pattern_ratio > 0.75:
+                    metric_score = 4
 
             details['metrics']['sentence_structure_pattern'] = {
                 'dominant_ratio': round(pattern_ratio, 2),
@@ -1314,14 +1380,16 @@ class ChineseDetector(BaseDetector):
                 matched_patterns.append(pattern)
 
         metric_score = 0
-        if total_count >= 6:
-            metric_score = 18
+        if total_count >= 8:
+            metric_score = 25
+        elif total_count >= 6:
+            metric_score = 20
         elif total_count >= 4:
-            metric_score = 12
+            metric_score = 15
         elif total_count >= 2:
-            metric_score = 6
+            metric_score = 8
         elif total_count >= 1:
-            metric_score = 3
+            metric_score = 4
 
         details['metrics']['technical_patterns'] = {
             'count': total_count,
@@ -1340,11 +1408,11 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if total_count >= 3:
-            metric_score = 15
+            metric_score = 20
         elif total_count >= 2:
-            metric_score = 10
+            metric_score = 15
         elif total_count >= 1:
-            metric_score = 5
+            metric_score = 8
 
         details['metrics']['chain_description'] = {
             'count': total_count,
@@ -1376,10 +1444,12 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if passive_ratio > 0.5:
-            metric_score = 15
+            metric_score = 20
         elif passive_ratio > 0.35:
-            metric_score = 10
+            metric_score = 15
         elif passive_ratio > 0.2:
+            metric_score = 10
+        elif passive_ratio > 0.1:
             metric_score = 5
 
         details['metrics']['passive_voice_density'] = {
@@ -1409,10 +1479,12 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if complex_ratio > 0.6:
-            metric_score = 15
+            metric_score = 20
         elif complex_ratio > 0.4:
-            metric_score = 10
+            metric_score = 15
         elif complex_ratio > 0.25:
+            metric_score = 10
+        elif complex_ratio > 0.15:
             metric_score = 5
 
         details['metrics']['sentence_complexity'] = {
