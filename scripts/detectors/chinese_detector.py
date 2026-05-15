@@ -378,6 +378,9 @@ class ChineseDetector(BaseDetector):
         score, details = self._analyze_ai_adjectives(text, score, details)
         score, details = self._analyze_purpose_clauses(text, score, details)
         score, details = self._analyze_em_dash_overuse(text, score, details)
+        score, details = self._analyze_ai_completion_pattern(text, score, details)
+        score, details = self._analyze_ai_formal_connectives(text, score, details)
+        score, details = self._analyze_ai_abstract_suffix(text, score, details)
 
         if len(sentences) >= 2:
             score, details = self._analyze_sentence_length_distribution(sentences, score, details)
@@ -614,14 +617,10 @@ class ChineseDetector(BaseDetector):
         ai_zone_ratio = in_ai_zone / len(info_densities)
 
         metric_score = 0
-        if ai_zone_ratio > 0.85:
-            metric_score += 8
-        elif ai_zone_ratio > 0.7:
-            metric_score += 4
+        if ai_zone_ratio > 0.9:
+            metric_score += 3
 
-        if std_density < 0.05:
-            metric_score += 5
-        elif std_density < 0.08:
+        if std_density < 0.03:
             metric_score += 2
 
         details['metrics']['info_density_distribution'] = {
@@ -733,12 +732,10 @@ class ChineseDetector(BaseDetector):
         transition_count = self.count_word_occurrences(text, self.AI_TRANSITIONS)
 
         metric_score = 0
-        if transition_count > 8:
-            metric_score = 15
-        elif transition_count > 5:
-            metric_score = 10
-        elif transition_count > 2:
-            metric_score = 5
+        if transition_count > 10:
+            metric_score = 8
+        elif transition_count > 7:
+            metric_score = 4
 
         details['metrics']['transition_overuse'] = {
             'count': transition_count,
@@ -798,10 +795,10 @@ class ChineseDetector(BaseDetector):
         top_pattern, top_count = most_common[0]
 
         metric_score = 0
-        if top_count >= 3:
-            metric_score = 12
-        elif top_count >= 2:
-            metric_score = 7
+        if top_count >= 4:
+            metric_score = 6
+        elif top_count >= 3:
+            metric_score = 3
 
         details['metrics']['sentence_opening_repetition'] = {
             'top_pattern': top_pattern,
@@ -859,16 +856,8 @@ class ChineseDetector(BaseDetector):
         cv = std_count / avg_count if avg_count > 0 else 0
 
         metric_score = 0
-        if len(text) >= 100:
-            if cv < 0.6:
-                metric_score = 5
-            elif cv < 0.8:
-                metric_score = 3
-        else:
-            if cv < 0.5:
-                metric_score = 4
-            elif cv < 0.7:
-                metric_score = 2
+        if cv < 0.4:
+            metric_score = 3
 
         details['metrics']['word_burstiness'] = {
             'cv': round(cv, 3),
@@ -1749,6 +1738,124 @@ class ChineseDetector(BaseDetector):
             'count': total_count,
             'score': metric_score,
             'details': f'冗长表达 {total_count} 处'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_ai_completion_pattern(self, text: str, score: int,
+                                       details: Dict) -> Tuple[int, Dict]:
+        ai_completion_verbs = [
+            '提升了', '实现了', '解决了', '降低了',
+            '增强了', '提供了', '保证了', '避免了',
+            '保持了', '构建了', '设计了', '开发了',
+            '引入了', '采用了', '提出了', '完成了',
+            '改善了', '促进了', '推动了', '强化了',
+            '开创了', '赋予了', '确保了', '满足了',
+        ]
+        total_count = 0
+        found = []
+        for verb in ai_completion_verbs:
+            count = text.count(verb)
+            if count > 0:
+                total_count += count
+                found.append(f'{verb}{count}')
+
+        metric_score = 0
+        if total_count >= 6:
+            metric_score = 12
+        elif total_count >= 4:
+            metric_score = 8
+        elif total_count >= 3:
+            metric_score = 5
+        elif total_count >= 2:
+            metric_score = 3
+
+        details['metrics']['ai_completion_pattern'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'AI完成句式 {total_count} 处 [{", ".join(found[:5])}]'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_ai_formal_connectives(self, text: str, score: int,
+                                        details: Dict) -> Tuple[int, Dict]:
+        patterns = [
+            (r'即[\u4e00-\u9fa5]{1,6}', '即X'),
+            (r'[，,]且[\u4e00-\u9fa5]{1,6}', '，且X'),
+            (r'不仅[\u4e00-\u9fa5]{1,20}(而且|还|更)', '不仅...而且'),
+            (r'使得[\u4e00-\u9fa5]{1,15}', '使得X'),
+            (r'使[\u4e00-\u9fa5]{1,6}得以[\u4e00-\u9fa5]{1,6}', '使X得以Y'),
+            (r'为[\u4e00-\u9fa5]{1,10}提供[\u4e00-\u9fa5]{1,6}', '为X提供Y'),
+            (r'将[\u4e00-\u9fa5]{1,10}(送入|输入|传入|馈入)', '将X送入'),
+            (r'均[\u4e00-\u9fa5]{1,4}', '均X'),
+        ]
+
+        total_count = 0
+        found = []
+        for pattern, name in patterns:
+            matches = re.findall(pattern, text)
+            if matches:
+                total_count += len(matches)
+                found.append(f'{name}({len(matches)})')
+
+        metric_score = 0
+        if total_count >= 5:
+            metric_score = 10
+        elif total_count >= 3:
+            metric_score = 6
+        elif total_count >= 2:
+            metric_score = 3
+        elif total_count >= 1:
+            metric_score = 1
+
+        details['metrics']['ai_formal_connectives'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'AI正式连接词 {total_count} 处 [{", ".join(found[:5])}]'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_ai_abstract_suffix(self, text: str, score: int,
+                                     details: Dict) -> Tuple[int, Dict]:
+        suffix_patterns = [
+            (r'(鲁棒|稳定|可靠|安全|实时|高效|轻量|泛化|创新|关键|核心|显著|有效|优异|突出|本质|必要|充分|合理|可行|准确|灵敏|灵活|扩展|适应|抗干扰)性', 'X性'),
+            (r'(优化|简化|强化|量化|规范|标准|自动|智能|泛化|抽象|细化|深化|固化)化', 'X化'),
+            (r'(效率|精度|准确|召回|查准|漏检|误检|检测|响应|吞吐|覆盖|接受|成功|失败)率', 'X率'),
+        ]
+
+        total_count = 0
+        found = []
+        for pattern, name in suffix_patterns:
+            matches = re.findall(pattern, text)
+            if matches:
+                total_count += len(matches)
+                found.append(f'{name}({len(matches)})')
+
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fa5]', text))
+        density = total_count / (chinese_chars / 1000) if chinese_chars > 50 else 0
+
+        metric_score = 0
+        if total_count >= 8:
+            metric_score = 10
+        elif total_count >= 5:
+            metric_score = 6
+        elif total_count >= 3:
+            metric_score = 3
+
+        if density > 8:
+            metric_score += 5
+        elif density > 5:
+            metric_score += 3
+
+        metric_score = min(15, metric_score)
+
+        details['metrics']['ai_abstract_suffix'] = {
+            'count': total_count,
+            'density': round(density, 1),
+            'score': metric_score,
+            'details': f'AI抽象后缀 {total_count} 处，密度{density:.1f}/千字 [{", ".join(found)}]'
         }
 
         return score + metric_score, details

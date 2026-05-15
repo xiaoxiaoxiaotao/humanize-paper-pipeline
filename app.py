@@ -138,6 +138,9 @@ CHINESE_METRIC_THRESHOLDS = {
     'citation_distribution': {'max_score': 8, 'description': '引用分布'},
     'absolute_language': {'max_score': 10, 'max_count': 2, 'description': '绝对化语言'},
     'verbose_expressions': {'max_score': 10, 'max_count': 3, 'description': '冗长表达'},
+    'ai_completion_pattern': {'max_score': 8, 'max_count': 3, 'description': 'AI完成句式'},
+    'ai_formal_connectives': {'max_score': 6, 'max_count': 2, 'description': 'AI正式连接词'},
+    'ai_abstract_suffix': {'max_score': 8, 'max_count': 4, 'description': 'AI抽象后缀'},
 }
 
 ENGLISH_METRIC_THRESHOLDS = {
@@ -520,6 +523,30 @@ CHINESE_METRIC_FEEDBACK = {
         "'就X而言'→'对X'；'通过X的方式'→'通过X'；"
         "'对X进行了Y'→'对X做了Y'；'为X提供了Y'→'给X提供了Y'；"
         "'在很大程度上'→'很大程度上'；'进一步完成了'→'还做了'。"
+    ),
+    'ai_completion_pattern': (
+        "【AI完成句式过多】检测到大量"动词+了"的AI典型完成句式"
+        "（如'提升了'、'实现了'、'解决了'、'降低了'等）。\n"
+        "修复方案：替换或简化这些句式。"
+        "'提升了'→'提高了'或'提升'；'实现了'→'做到了'或'实现'；"
+        "'解决了'→'处理了'或'解决'；'降低了'→'减少了'或'降低'。"
+        "也可以去掉'了'，改用更简洁的表述。"
+    ),
+    'ai_formal_connectives': (
+        "【AI正式连接词过多】检测到AI常用的正式连接词"
+        "（如'即'、'，且'、'不仅...而且'、'使得'、'为X提供Y'等）。\n"
+        "修复方案：替换为更自然的表达。"
+        "'即'→'也就是'或'即'删除；'，且'→'，并'或拆成两句；"
+        "'不仅...而且'→'既...也'或拆成两句；'使得'→'让'或'使'；"
+        "'为X提供Y'→'给X提供Y'；'将X送入'→'把X输入'。"
+    ),
+    'ai_abstract_suffix': (
+        "【AI抽象后缀过多】检测到大量X性/X化/X率等抽象名词"
+        "（如'鲁棒性'、'泛化性'、'优化化'、'准确率'等）。\n"
+        "修复方案：替换为更具体的表述。"
+        "'鲁棒性'→'稳定性'；'泛化性'→'适应能力'；"
+        "'高效性'→'效率高'；'轻量化'→'轻量'或'参数少'；"
+        "'准确率'→'精度'或'正确率'。减少抽象后缀的堆砌。"
     ),
 }
 
