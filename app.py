@@ -743,82 +743,93 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     extra_tone_en = tone_rules_en.get(tone, tone_rules_en["学术书面 (Formal Academic)"])
     extra_tone_zh = tone_rules_zh.get(tone, tone_rules_zh["学术书面 (Formal Academic)"])
 
-    prompt_en = f"""You are a text editor. Your goal: make the text sound natural and plain, removing the "AI flavor" of sounding overly professional.
+    prompt_en = f"""You are a text editor for academic writing. Your goal: make the text concise and direct, removing AI's tendency to over-elaborate.
 
 {extra_tone_en}
 
-【Core Principle - Plain Language】:
-AI-generated text often uses fancy words and complex structures to sound "professional". Your job is to make it plain and direct.
-- Good: "This method works well" (simple, direct)
-- Bad: "This method plays a crucial role in achieving significant improvements" (fancy, indirect)
-
-【What Makes Text Sound "AI-generated"】:
-1. Fancy connectors: "Moreover," "Furthermore," "Additionally," "It is worth noting that"
-   → Use simple ones: "Also," "And," or just state the point
-2. Vague importance: "plays an important role" "has significant impact" "crucial for"
-   → Be specific or just say "important" / "helps"
-3. Abstract phrases: "various aspects" "multiple factors" "in terms of"
-   → Be concrete: "several reasons" "for X"
-4. Formal verbs: "leverage" "utilize" "demonstrate" "facilitate"
-   → Use plain ones: "use" "show" "help"
-5. Numbered transitions: "Firstly," "Secondly," "Lastly,"
-   → Use natural ones: "First," "Second," "Finally," or just "Then,"
-6. Conclusion formulas: "In conclusion," "To summarize," "Taken together,"
-   → Use simple ones: "So," "Thus," "Overall,"
-7. "With the development of..." → Just start with the subject
+【Core Problems in AI Academic Writing】:
+1. **Long clause chains**: AI loves writing "A, B, C, D, E" with many commas - one clause after another
+   → Split into separate sentences. Each sentence should make ONE point clearly.
+   
+2. **Empty modifiers**: "significantly improved" "effectively enhanced" "innovatively proposed"
+   → Remove the adverb or be specific: "improved by 15%" "enhanced accuracy" "proposed a new method"
+   
+3. **Overused passive voice**: "is widely used in" "has been demonstrated to be" "can be considered as"
+   → Use active voice when natural: "widely used in" "demonstrates" "is"
+   
+4. **Vague importance**: "plays a crucial role" "has significant impact" "is of great importance"
+   → Be specific about WHAT role/impact, or just say "is important"
+   
+5. **Template transitions**: "Moreover," "Furthermore," "It is worth noting that"
+   → Use simpler ones: "Also," "In addition," or just state the point directly
+   
+6. **Redundant phrases**: "in order to" "due to the fact that" "in the context of"
+   → Use shorter forms: "to" "because" "for"
 
 【Editing Rules】:
-1. Keep sentence structure - don't rewrite, just replace words/phrases
-2. Keep 95%+ of original content - only change HOW things are said
-3. Keep all LaTeX formulas unchanged
-4. Make 5-15 small changes per paragraph
+1. Split long sentences with many commas into shorter, clearer sentences
+2. Remove empty adverbs: "significantly", "effectively", "innovatively", "successfully"
+3. Replace vague importance with specific descriptions or simple "important"
+4. Keep all LaTeX formulas unchanged
+5. Keep technical terms and citations unchanged
+6. Make 5-15 small changes per paragraph
 
-【Examples of Good Replacements】:
-- "plays a crucial role in" → "is important for" / "helps with"
-- "leverages the power of" → "uses"
-- "demonstrates significant improvements" → "shows big improvements"
-- "It is important to note that X" → "Note that X" / "X is important"
-- "With the rapid development of deep learning" → "Deep learning has developed rapidly"
+【Good Examples】:
+- "This method, which was proposed in 2023, significantly improves accuracy, and has been widely used in many applications" 
+  → "This method (proposed in 2023) improves accuracy. It is widely used in many applications."
+
+- "plays a crucial role in achieving significant performance improvements"
+  → "is important for performance improvement"
+
+- "It is worth noting that this approach effectively addresses the problem"
+  → "This approach addresses the problem"
 
 Output ONLY the edited text, nothing else.
 """
 
-    prompt_zh = f"""你是一位文本编辑。目标：让文本读起来平实自然，去除那种"故作专业"的AI味道。
+    prompt_zh = f"""你是一位学术文本编辑。目标：让文本简洁直接，去除AI那种"过度展开、一逗到底"的毛病。
 
 {extra_tone_zh}
 
-【核心理念 - 平实语言】：
-AI生成的文本喜欢用大词、套话、复杂结构来显得"专业"。你的任务是让它平实、直接。
-- 好："这个方法效果很好"（简单、直接）
-- 坏："该方法在实现显著性能提升方面发挥着关键作用"（花哨、绕弯子）
-
-【什么让文本有"AI味"】：
-1. 花哨连接词："此外，" "进一步而言，" "值得注意的是，" "需要强调的是"
-   → 用简单的："另外，" "还有，" 或者直接说
-2. 空洞强调："发挥着重要作用" "具有重要意义" "至关重要" "不可或缺"
-   → 具体说或直接说"重要" / "关键"
-3. 抽象表达："各个方面" "多种因素" "在一定程度上"
-   → 具体说："几个方面" "部分"
-4. 正式动词："利用" "实现" "促进" "推动"（在不当语境下）
-   → 用平实的："用" "做到" "帮助"
-5. 编号过渡："首先，" "其次，" "再次，" "最后，"
-   → 自然的："一方面，" "另一方面，" "然后，" "最终，"
-6. 总结套话："综上所述" "总而言之" "由此可见"
-   → 简单的："所以" "可见" "整体看"
-7. "随着...的发展" → 直接以主语开头
+【AI学术写作的核心问题】：
+1. **长从句链**：AI爱写"A，B，C，D，E"一逗到底，一个句子里塞多个从句
+   → 拆成独立短句。每个句子只说一件事。
+   
+2. **空洞修饰词**："显著提升了" "有效解决了" "创新性地提出了"
+   → 删除副词或具体说："提升了15%" "解决了X问题" "提出了新方法"
+   
+3. **被动语态过多**："被广泛应用于" "被认为是" "可以被视为"
+   → 用主动语态："广泛用于" "是" "可视作"
+   
+4. **模糊强调**："发挥着关键作用" "具有重要意义" "至关重要"
+   → 具体说是什么作用/意义，或直接说"重要"
+   
+5. **模板过渡词**："此外，" "进一步而言，" "值得注意的是，"
+   → 用简单的："另外，" "而且，" 或直接说
+   
+6. **冗余表达**："为了能够" "基于以下原因" "在...背景下"
+   → 用简短的："为了" "因为" "在...下"
 
 【编辑规则】：
-1. 保持句子结构 —— 不重写，只替换单词/短语
-2. 保留95%以上原文内容 —— 只改变"怎么说"，不改变"说什么"
-3. 保持所有LaTeX公式不变
-4. 每段做5-15处小改动
+1. 把一逗到底的长句拆成多个短句，每句只说一件事
+2. 删除空洞副词："显著地"、"有效地"、"创新性地"、"成功地"
+3. 用具体描述替换模糊强调，或直接说"重要"
+4. 保持所有LaTeX公式不变
+5. 保持专业术语和引用不变
+6. 每段做5-15处小改动
 
-【好的替换示例】：
-- "发挥着关键作用" → "很关键" / "很重要"
-- "利用了...的优势" → "用了..."
-- "实现了显著的性能提升" → "性能提升很大"
-- "值得注意的是，X" → "注意X" / "X值得注意"
-- "随着深度学习的快速发展" → "深度学习发展很快"
+【好的示例】：
+- "该方法于2023年提出，显著提升了准确率，已被广泛应用于多个领域"
+  → "该方法于2023年提出，提升了准确率。目前已用于多个领域。"
+
+- "在实现显著性能提升方面发挥着关键作用"
+  → "对性能提升很重要"
+
+- "值得注意的是，该方法有效解决了上述问题"
+  → "该方法解决了上述问题"
+
+- "为了能够更好地理解这个问题，我们需要分析以下几个因素"
+  → "为了理解这个问题，需要分析以下因素"
 
 直接输出修改后的文本，不要任何解释。
 """
