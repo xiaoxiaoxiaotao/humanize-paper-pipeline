@@ -535,11 +535,13 @@ CHINESE_METRIC_FEEDBACK = {
     ),
     'ai_formal_connectives': (
         "【AI正式连接词过多】检测到AI常用的正式连接词"
-        "（如'即'、'，且'、'不仅...而且'、'使得'、'为X提供Y'等）。\n"
+        "（如'即'、'，且'、'不仅...而且'、'使得'、'为X提供Y'、'意味着'、'体现出'、'相较于'等）。\n"
         "修复方案：替换为更自然的表达。"
         "'即'→'也就是'或'即'删除；'，且'→'，并'或拆成两句；"
         "'不仅...而且'→'既...也'或拆成两句；'使得'→'让'或'使'；"
-        "'为X提供Y'→'给X提供Y'；'将X送入'→'把X输入'。"
+        "'为X提供Y'→'给X提供Y'；'将X送入'→'把X输入'；"
+        "'意味着'→'说明'；'体现出'→'体现'；'相较于'→'比'；"
+        "'从X来看'→'从X看'。"
     ),
     'ai_abstract_suffix': (
         "【AI抽象后缀过多】检测到大量X性/X化/X率等抽象名词"
@@ -783,130 +785,74 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     extra_tone_en = tone_rules_en.get(tone, tone_rules_en["学术书面 (Formal Academic)"])
     extra_tone_zh = tone_rules_zh.get(tone, tone_rules_zh["学术书面 (Formal Academic)"])
 
-    prompt_en = f"""You are a text editor for academic writing. Your goal: make the text concise and direct, removing AI's tendency to over-elaborate.
+    prompt_en = f"""You are an academic text editor. Goal: make text concise and direct, removing AI's over-elaboration.
 
 {extra_tone_en}
 
-【Core Problems in AI Academic Writing】:
-1. **Long clause chains**: AI loves writing "A, B, C, D, E" with many commas - one clause after another
-   → Split into separate sentences. Each sentence should make ONE point clearly.
-   
-2. **Empty modifiers**: "significantly improved" "effectively enhanced" "innovatively proposed"
-   → Remove the adverb or be specific: "improved by 15%" "enhanced accuracy" "proposed a new method"
-   
-3. **Overused passive voice**: "is widely used in" "has been demonstrated to be" "can be considered as"
-   → Use active voice when natural: "widely used in" "demonstrates" "is"
-   
-4. **Vague importance**: "plays a crucial role" "has significant impact" "is of great importance"
-   → Be specific about WHAT role/impact, or just say "is important"
-   
-5. **Template transitions**: "Moreover," "Furthermore," "It is worth noting that"
-   → Use simpler ones: "Also," "In addition," or just state the point directly
-   
-6. **Redundant phrases**: "in order to" "due to the fact that" "in the context of"
-   → Use shorter forms: "to" "because" "for"
+【Core Operations】:
+1. Split long sentences: find semantic breaks, replace commas with periods. One point per sentence.
+2. Remove empty adverbs: "significantly" "effectively" "innovatively" "successfully" → delete
+3. Replace AI phrasing (pick the most natural, don't substitute mechanically):
 
-【Editing Rules】:
-1. Split long sentences with many commas into shorter, clearer sentences
-2. Remove empty adverbs: "significantly", "effectively", "innovatively", "successfully"
-3. Replace vague importance with specific descriptions or simple "important"
-4. Keep all LaTeX formulas unchanged
-5. Keep technical terms and citations unchanged
-6. Make 5-15 small changes per paragraph
+| AI phrasing | → | Natural |
+|-------------|---|---------|
+| in order to / due to the fact that | → | to / because |
+| significantly improved / effectively enhanced | → | improved / enhanced |
+| plays a crucial role / is of great importance | → | is important / is key |
+| is widely used in / has been demonstrated | → | widely used in / demonstrates |
+| It is worth noting that / Furthermore, | → | (delete) / Also, |
+| via X to achieve Y | → | using X to Y / X achieves Y |
 
-【Good Examples】:
-- "This method, which was proposed in 2023, significantly improves accuracy, and has been widely used in many applications" 
+4. Keep LaTeX formulas, technical terms, and citations unchanged.
+
+【Examples】:
+- "This method, which was proposed in 2023, significantly improves accuracy, and has been widely used in many applications"
   → "This method (proposed in 2023) improves accuracy. It is widely used in many applications."
 
-- "plays a crucial role in achieving significant performance improvements"
-  → "is important for performance improvement"
-
 - "It is worth noting that this approach effectively addresses the problem"
-  → "This approach addresses the problem"
+  → "This approach addresses the problem."
+
+- "plays a crucial role in achieving significant performance improvements"
+  → "is important for performance improvement."
 
 Output ONLY the edited text, nothing else.
 """
 
-    prompt_zh = f"""你是一位学术文本编辑。目标：让文本简洁直接，去除AI那种"过度展开、一逗到底"的毛病。
+    prompt_zh = f"""你是学术文本编辑。目标：让文本简洁直接，去除AI"过度展开、一逗到底"的毛病。
 
 {extra_tone_zh}
 
-【AI学术写作的核心问题】：
-1. **长从句链**：AI爱写"A，B，C，D，E"一逗到底，一个句子里塞多个从句
-   → 找到语义断点，把逗号换成句号。每个句子只说一件事。
-   例："该方法于2023年提出，显著提升了准确率，已被广泛应用于多个领域"
-   → "该方法于2023年提出，提高了准确率。目前已用于多个领域。"
+【核心操作】：
+1. 拆长句：找到语义断点把逗号换句号，每句只说一件事
+2. 删空洞副词："显著地""有效地""创新性地""成功地"→删
+3. 替换AI用词（选最自然的，不要机械替换）：
 
-2. **空洞修饰词**："显著提升了" "有效解决了" "创新性地提出了"
-   → 删除副词或具体说："提升了15%" "解决了X问题" "提出了新方法"
+| AI用词 | → | 人话 |
+|--------|---|------|
+| 通过X实现Y | → | 用X做到Y / 直接去掉"通过" |
+| 融合/优化/采用 | → | 组合/调整/用 |
+| 提升/增强/构建 | → | 提高/加强/搭建 |
+| 提升了/实现了/解决了 | → | 提高了/做到了/处理了 |
+| 证明了/展示了/验证了 | → | 说明/显示/确认 |
+| 提升至/提升幅度 | → | 提高到/提高幅度 |
+| 鲁棒性/范式/机制 | → | 稳定性/模式/方法 |
+| 意味着/体现出/相较于 | → | 说明/体现/比 |
+| 使得/，且/不仅...而且 | → | 让/，并/既...也 |
+| 具有重要意义/发挥着关键作用 | → | 重要/关键 |
+| 被广泛应用于 | → | 广泛用于 |
+| 为X提供Y | → | 给X提供Y |
 
-3. **被动语态过多**："被广泛应用于" "被认为是" "可以被视为"
-   → 用主动语态："广泛用于" "是" "即"
+4. 保持LaTeX公式、专业术语、引用不变
 
-4. **模糊强调**："发挥着关键作用" "具有重要意义" "至关重要" "不可或缺"
-   → 具体说是什么作用/意义，或直接说"重要"
-
-5. **模板过渡词**："此外，" "进一步而言，" "值得注意的是，" "与此同时"
-   → 删除或用更简单的连接
-
-6. **AI高频动词扎堆**：AI爱用"通过""融合""优化""采用""实现""提升""增强""引入""构建""提出"
-   → 换成更朴素的："利用""组合""调整""用""做到""提高""加强""加入""搭建""给出"
-
-7. **AI高频名词扎堆**："鲁棒性" "范式" "赋能" "维度" "生态" "体系" "框架" "机制"
-   → 换成更朴素的："稳定性" "模式" "助力" "方面" "系统" "结构" "方法"
-
-8. **抽象短语**："具有重要意义" "取得了良好的效果" "发挥着重要作用" "在一定程度上" "从...角度来看" "就...而言" "通过...的方式" "在...过程中" "为...提供了" "对...进行了"
-   → "重要" "取得了效果" "很重要" "部分" "从...看" "对..." "通过..." "...时" "给...提供了" "对...做了"
-
-9. **AI因果链句式**："通过X实现Y" "通过X提升Y" "通过X优化Y" "X与Y的Z"
-   → 拆分或简化："用X做到Y" "用X提高Y" "X和Y的Z"
-   例："通过融合多尺度特征实现了检测精度的提升" → "利用组合多尺度特征，提高了检测精度"
-
-10. **AI完成句式扎堆**："提升了" "实现了" "解决了" "降低了" "增强了" "构建了" "引入了" "提出了" "完成了" "证明了"
-    → 去掉"了"或换更朴素的动词："提高" "做到" "处理" "减少" "加强" "搭建" "加入" "给出" "做了" "说明"
-
-【编辑规则】：
-1. 把一逗到底的长句拆成多个短句，每句只说一件事——找到语义断点把逗号换成句号
-2. 删除空洞副词："显著地"、"有效地"、"创新性地"、"成功地"
-3. 用具体描述替换模糊强调，或直接说"重要"
-4. "通过"换成"利用"，"融合"换成"组合"，"实现"换成"做到"，"构建"换成"搭建"
-5. "提升了"→"提高了"，"实现了"→"做到了"，"解决了"→"处理了"，"证明了"→"说明"
-6. "，且"→"，并"，"使得"→"让"，"不仅...而且"→"既...也"
-7. 保持所有LaTeX公式不变
-8. 保持专业术语和引用不变
-9. 每段做5-15处小改动
-10. 不要机械替换——理解上下文后选择最自然的表达
-
-【好的示例】：
+【示例】：
 - "该方法于2023年提出，显著提升了准确率，已被广泛应用于多个领域"
   → "该方法于2023年提出，提高了准确率。目前已用于多个领域。"
 
-- "在实现显著性能提升方面发挥着关键作用"
-  → "对性能提升很重要"
-
-- "值得注意的是，该方法有效解决了上述问题"
-  → "该方法解决了上述问题"
-
-- "通过融合多尺度特征，该方法增强了检测精度"
-  → "利用组合多尺度特征，该方法提高了检测准确率"
-
-- "输入原始图像后，检测算法将其送入VGG-16或ResNet50这类CNN网络，从中提取高维且语义信息丰富的特征表示"
-  → "输入原始图像后，检测算法将其输入VGG-16或ResNet50这类CNN网络。从中提取高维、语义丰富的特征表示。"
-
-- "卷积层对特征图逐级抽象，其表征能力制约着后续定位与分类任务的性能上限"
-  → "卷积层对特征图逐级抽象。其表征能力制约了后续定位与分类的性能上限。"
-
-- "骨干网络的特征提取能力与效率，在很大程度上影响着目标检测器的整体表现"
-  → "骨干网络的特征提取能力和效率，很大程度上影响目标检测器的整体表现。"
+- "通过引入注意力机制实现了检测精度的显著提升"
+  → "引入注意力机制，检测精度明显提高。"
 
 - "本研究进一步完成了模型的可视化分析，其结果证明C2HiLo-YOLO在训练过程中收敛速度快"
   → "本研究还做了模型的可视化分析。结果证明C2HiLo-YOLO训练时收敛快。"
-
-- "在复杂的PPE检测任务中，原始YOLO11n的检测头面对多尺度、高密度的PPE小目标时，性能瓶颈逐渐显现"
-  → "PPE检测任务较复杂。原始YOLO11n的检测头面对多尺度、高密度小目标时，性能瓶颈逐渐显现。"
-
-- "通过引入注意力机制实现了检测精度的显著提升"
-  → "利用注意力机制，检测精度明显提高。"
 
 - "该模块通过高低频特征解耦与协同优化的方式，同时捕捉边缘纹理等细粒度特征和场景全局上下文"
   → "该模块把高低频特征分开处理再结合。既捕捉边缘纹理等细节，也获取全局上下文。"

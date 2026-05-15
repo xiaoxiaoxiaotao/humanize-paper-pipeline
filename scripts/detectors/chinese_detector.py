@@ -1755,6 +1755,9 @@ class ChineseDetector(BaseDetector):
             '取得了', '达到了', '获得了', '证明了',
             '展示了', '验证了', '确认了', '确立了',
         ]
+        ai_completion_phrases = [
+            '提升至', '降低至', '增加至', '减少至',
+        ]
         total_count = 0
         found = []
         for verb in ai_completion_verbs:
@@ -1762,6 +1765,11 @@ class ChineseDetector(BaseDetector):
             if count > 0:
                 total_count += count
                 found.append(f'{verb}{count}')
+        for phrase in ai_completion_phrases:
+            count = text.count(phrase)
+            if count > 0:
+                total_count += count
+                found.append(f'{phrase}{count}')
 
         metric_score = 0
         if total_count >= 6:
@@ -1798,6 +1806,11 @@ class ChineseDetector(BaseDetector):
             (r'具体而言[，,]?', '具体而言'),
             (r'换言之[，,]?', '换言之'),
             (r'进一步而言[，,]?', '进一步而言'),
+            (r'其[\u4e00-\u9fa5]{1,6}(性能|效果|精度|能力|表现|特征|结果|优势|特点)', '其X性能'),
+            (r'意味着[\u4e00-\u9fa5]{1,10}', '意味着X'),
+            (r'从[\u4e00-\u9fa5]{2,10}(来看|角度)', '从X来看'),
+            (r'体现出[\u4e00-\u9fa5]{1,10}', '体现出X'),
+            (r'相比[\u4e00-\u9fa5]{2,10}', '相比X'),
         ]
 
         total_count = 0

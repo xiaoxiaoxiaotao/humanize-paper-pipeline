@@ -329,6 +329,41 @@ class ChineseHumanizer(BaseHumanizer):
         '均': '都',
         '具体而言': '具体说',
         '换言之': '即',
+
+        '提升至': '提高到',
+        '降低至': '减少到',
+        '增加至': '增加到',
+        '减少至': '减到',
+        '提升幅度': '提高幅度',
+        '其表征能力': '表示能力',
+        '其性能': '性能',
+        '其效果': '效果',
+        '其精度': '精度',
+        '其能力': '能力',
+        '其表现': '表现',
+        '其特征': '特征',
+        '其优势': '优势',
+        '其结果': '结果',
+        '为.*提供.*基础': '给.*提供.*基础',
+        '为.*提供.*支撑': '给.*提供.*支撑',
+        '为.*提供.*依据': '给.*提供.*依据',
+        '为.*提供.*保障': '给.*提供.*保障',
+        '进一步完成了': '还做了',
+        '进一步验证': '继续验证',
+        '进一步证明': '还说明',
+        '进一步表明': '还表明',
+        '进一步展示': '还展示',
+        '进一步确认': '还确认',
+
+        '意味着': '说明',
+        '体现出': '体现',
+        '从.*来看': '从.*看',
+        '从.*角度': '从.*方面',
+        '相比原始': '和原始',
+        '相比.*而言': '比.*来说',
+        '相较于': '比',
+        '体现出优异': '表现出好的',
+        '体现出突出': '表现出好的',
     }
 
     AI_ENUM_REPLACEMENTS = [
@@ -343,7 +378,7 @@ class ChineseHumanizer(BaseHumanizer):
 
     SUIZHE_PATTERN = re.compile(r'随着([^，。的了]+?的[^，。]*)[，,]')
     JIYU_PATTERN = re.compile(r'基于([^，。的了]+?的[^，。]*)')
-    TONGGUO_PATTERN = re.compile(r'通过([^，。的了]+?的[^，。]*)')
+    TONGGUO_PATTERN = re.compile(r'通过([^，。]{2,20}?)(?=，|。|实现|完成|达到|提升|增强|优化|解决|获取|提取|构建|训练|学习|融合|整合|做到|提高|加强|改进|验证|证明|说明|确认)')
 
     def __init__(self):
         super().__init__(name="Chinese Humanizer")
@@ -422,8 +457,13 @@ class ChineseHumanizer(BaseHumanizer):
                 new_content = content[:-1]
             else:
                 new_content = content
-            changes.append(f"修复'通过'模板: 通过{content} -> 利用{new_content}")
-            return f"利用{new_content}"
+            verb_indicators = ['引入', '采用', '使用', '利用', '设计', '构建', '融合', '结合', '加入', '添加']
+            for vi in verb_indicators:
+                if new_content.startswith(vi):
+                    changes.append(f"修复'通过'模板: 通过{content} -> {new_content}")
+                    return new_content
+            changes.append(f"修复'通过'模板: 通过{content} -> 用{new_content}")
+            return f"用{new_content}"
 
         result = self.TONGGUO_PATTERN.sub(replace_tongguo, result)
         return result, changes
