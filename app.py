@@ -743,69 +743,84 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     extra_tone_en = tone_rules_en.get(tone, tone_rules_en["学术书面 (Formal Academic)"])
     extra_tone_zh = tone_rules_zh.get(tone, tone_rules_zh["学术书面 (Formal Academic)"])
 
-    prompt_en = f"""You are a text editor. Your task: make minimal edits to remove AI patterns while keeping 95%+ of the original text unchanged.
+    prompt_en = f"""You are a text editor. Your goal: make the text sound natural and plain, removing the "AI flavor" of sounding overly professional.
 
 {extra_tone_en}
 
-[EDITING RULES - Follow Strictly]:
-1. KEEP sentence structure and word order - NEVER rewrite sentences
-2. ONLY make these two types of changes:
-   🟢 ADD: Insert natural transitions/connectors (e.g., "and then", "specifically", "in this case") to improve flow
-   🔴 DELETE: Remove AI template phrases only (see list below)
-3. NEVER add new information, examples, or explanations not in original
-4. Keep LaTeX formulas exactly as they are
+【Core Principle - Plain Language】:
+AI-generated text often uses fancy words and complex structures to sound "professional". Your job is to make it plain and direct.
+- Good: "This method works well" (simple, direct)
+- Bad: "This method plays a crucial role in achieving significant improvements" (fancy, indirect)
 
-[DELETE These AI Patterns]:
-- "Moreover,", "Furthermore,", "Additionally," → delete or replace with implicit logic
-- "It is important/worth noting that" → delete, just state the point
-- "plays an important/crucial role" → "is important for" or just describe function
-- "various aspects", "multiple factors", "in terms of" → be specific or delete
-- "With the development of..." → start with the subject directly
-- "In conclusion", "To summarize", "Taken together" → delete
-- "Firstly", "Secondly", "Lastly" → delete numbering
-- "It can be seen that", "It has been shown that" → delete
-- "significant impact", "profound effect" → be specific
-- "serves as", "acts as", "functions as" → "is" or describe directly
+【What Makes Text Sound "AI-generated"】:
+1. Fancy connectors: "Moreover," "Furthermore," "Additionally," "It is worth noting that"
+   → Use simple ones: "Also," "And," or just state the point
+2. Vague importance: "plays an important role" "has significant impact" "crucial for"
+   → Be specific or just say "important" / "helps"
+3. Abstract phrases: "various aspects" "multiple factors" "in terms of"
+   → Be concrete: "several reasons" "for X"
+4. Formal verbs: "leverage" "utilize" "demonstrate" "facilitate"
+   → Use plain ones: "use" "show" "help"
+5. Numbered transitions: "Firstly," "Secondly," "Lastly,"
+   → Use natural ones: "First," "Second," "Finally," or just "Then,"
+6. Conclusion formulas: "In conclusion," "To summarize," "Taken together,"
+   → Use simple ones: "So," "Thus," "Overall,"
+7. "With the development of..." → Just start with the subject
 
-[ADD These Natural Connectors - Examples]:
-- Before technical details: "In detail," / "To be precise,"
-- After introducing method: "This approach" / "The method"
-- Between related points: "Then," / "As a result,"
-- When elaborating: "Namely," / "Put differently,"
+【Editing Rules】:
+1. Keep sentence structure - don't rewrite, just replace words/phrases
+2. Keep 95%+ of original content - only change HOW things are said
+3. Keep all LaTeX formulas unchanged
+4. Make 5-15 small changes per paragraph
 
-Output ONLY the edited text. Make 5-15 small changes per paragraph.
+【Examples of Good Replacements】:
+- "plays a crucial role in" → "is important for" / "helps with"
+- "leverages the power of" → "uses"
+- "demonstrates significant improvements" → "shows big improvements"
+- "It is important to note that X" → "Note that X" / "X is important"
+- "With the rapid development of deep learning" → "Deep learning has developed rapidly"
+
+Output ONLY the edited text, nothing else.
 """
 
-    prompt_zh = f"""你是一位文本编辑。任务：对原文做最小幅度的修改，去除AI痕迹，同时保留95%以上的原文内容不变。
+    prompt_zh = f"""你是一位文本编辑。目标：让文本读起来平实自然，去除那种"故作专业"的AI味道。
 
 {extra_tone_zh}
 
-【编辑规则——严格遵守】：
-1. ✅ 保持原有句式结构和语序 —— 绝对不能重写句子
-2. ✅ 只允许两种修改：
-   🟢 添加：在适当位置插入自然的过渡词、连接词
-   🔴 删除：只删除明显的AI模板化表达（见下方列表）
-3. ❌ 绝不添加原文没有的新信息、例子、解释
-4. ✅ 原样保留所有LaTeX公式
+【核心理念 - 平实语言】：
+AI生成的文本喜欢用大词、套话、复杂结构来显得"专业"。你的任务是让它平实、直接。
+- 好："这个方法效果很好"（简单、直接）
+- 坏："该方法在实现显著性能提升方面发挥着关键作用"（花哨、绕弯子）
 
-【必须删除的AI模板表达】：
-- "随着...的..." → 删除"随着"，直接以主语开头
-- "基于...的..." → 改为"使用/采用...的"
-- "综上所述/总而言之/由此可见" → 删除
-- "值得注意的是/需要强调的是/需要指出的是" → 删除
-- "首先/其次/再次/最后" → 删除编号词
-- "具有重要意义/发挥着重要作用" → 改为"重要"
-- "不可或缺/至关重要/举足轻重" → 改为"重要/关键/必要"
-- "旨在/本文旨在" → 改为"为了/本文为了"
-- "在一定程度上/在某种程度上" → 删除
-- "显而易见/毫无疑问" → 删除
-- "扮演着/扮演了" → 改为"作为"
-- "直接决定了" → 改为"影响着"
+【什么让文本有"AI味"】：
+1. 花哨连接词："此外，" "进一步而言，" "值得注意的是，" "需要强调的是"
+   → 用简单的："另外，" "还有，" 或者直接说
+2. 空洞强调："发挥着重要作用" "具有重要意义" "至关重要" "不可或缺"
+   → 具体说或直接说"重要" / "关键"
+3. 抽象表达："各个方面" "多种因素" "在一定程度上"
+   → 具体说："几个方面" "部分"
+4. 正式动词："利用" "实现" "促进" "推动"（在不当语境下）
+   → 用平实的："用" "做到" "帮助"
+5. 编号过渡："首先，" "其次，" "再次，" "最后，"
+   → 自然的："一方面，" "另一方面，" "然后，" "最终，"
+6. 总结套话："综上所述" "总而言之" "由此可见"
+   → 简单的："所以" "可见" "整体看"
+7. "随着...的发展" → 直接以主语开头
 
-【可以添加的自然连接词】：
-- "接着，"、"而"、"于是，"、"从而，"
+【编辑规则】：
+1. 保持句子结构 —— 不重写，只替换单词/短语
+2. 保留95%以上原文内容 —— 只改变"怎么说"，不改变"说什么"
+3. 保持所有LaTeX公式不变
+4. 每段做5-15处小改动
 
-每段只做5-15处小改动。直接输出修改后的纯净文本。
+【好的替换示例】：
+- "发挥着关键作用" → "很关键" / "很重要"
+- "利用了...的优势" → "用了..."
+- "实现了显著的性能提升" → "性能提升很大"
+- "值得注意的是，X" → "注意X" / "X值得注意"
+- "随着深度学习的快速发展" → "深度学习发展很快"
+
+直接输出修改后的文本，不要任何解释。
 """
 
     system_prompt = prompt_en if lang == "English" else prompt_zh

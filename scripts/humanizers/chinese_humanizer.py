@@ -7,45 +7,42 @@ from .base_humanizer import BaseHumanizer
 
 class ChineseHumanizer(BaseHumanizer):
 
-    AI_TEMPLATE_DELETIONS = [
-        '综上所述',
-        '总而言之',
-        '由此可见',
-        '值得注意的是',
-        '需要强调的是',
-        '需要指出的是',
-        '在一定程度上',
-        '在某种程度上',
-        '事实上，',
-        '实际上，',
-        '本质上，',
-        '显而易见',
-        '毫无疑问',
-        '不言而喻',
-        '毋庸置疑',
-        '众所周知',
-        '总体来说',
-        '总体而言',
-        '一般而言',
-        '简而言之',
-        '进一步而言',
-        '进一步说',
-        '换言之',
-        '具体而言，',
-        '也就是说，',
-        '从整体而言',
-        '从整体来看',
-        '从总体来看',
-        '从总体而言',
-        '可以说',
-        '不可否认',
-        '毋庸置疑地',
-        '毋庸置疑的',
-        '众所周知地',
-        '众所周知的是',
-    ]
-
     AI_TEMPLATE_REPLACEMENTS = {
+        '综上所述': '所以',
+        '总而言之': '所以',
+        '由此可见': '可见',
+        '值得注意的是': '要注意',
+        '需要强调的是': '要强调',
+        '需要指出的是': '要指出',
+        '在一定程度上': '部分',
+        '在某种程度上': '部分',
+        '事实上，': '其实，',
+        '实际上，': '其实，',
+        '本质上，': '本质上，',
+        '显而易见': '明显',
+        '毫无疑问': '确实',
+        '不言而喻': '自然',
+        '毋庸置疑': '确实',
+        '众所周知': '大家知道',
+        '总体来说': '整体看',
+        '总体而言': '整体看',
+        '一般而言': '通常',
+        '简而言之': '简单说',
+        '进一步而言': '进一步',
+        '进一步说': '进一步',
+        '换言之': '换句话说',
+        '具体而言，': '具体来说，',
+        '也就是说，': '即，',
+        '从整体而言': '整体看',
+        '从整体来看': '整体看',
+        '从总体来看': '总体看',
+        '从总体而言': '总体看',
+        '可以说': '可以说',
+        '不可否认': '确实',
+        '毋庸置疑地': '确实',
+        '毋庸置疑的': '确实的',
+        '众所周知地': '大家知道',
+        '众所周知的是': '大家知道的是',
         '随着': '',
         '基于': '使用',
         '旨在': '为了',
@@ -112,7 +109,6 @@ class ChineseHumanizer(BaseHumanizer):
         '行之有效': '有效',
         '卓有成效': '有效',
         '立竿见影': '立即见效',
-        '端到端': '端到端',
         '强大且高效': '高效',
         '高效且': '高效',
         '有效且': '有效',
@@ -123,13 +119,13 @@ class ChineseHumanizer(BaseHumanizer):
     }
 
     AI_ENUM_REPLACEMENTS = [
-        (r'首先[，,]', ''),
-        (r'其次[，,]', '接着，'),
+        (r'首先[，,]', '一方面，'),
+        (r'其次[，,]', '另一方面，'),
         (r'再次[，,]', '另外，'),
-        (r'最后[，,]', ''),
-        (r'第一[，,]', ''),
-        (r'第二[，,]', ''),
-        (r'第三[，,]', ''),
+        (r'最后[，,]', '最终，'),
+        (r'第一[，,]', '其一，'),
+        (r'第二[，,]', '其二，'),
+        (r'第三[，,]', '其三，'),
     ]
 
     SUIZHE_PATTERN = re.compile(r'随着([^，。的了]+?的[^，。]*)[，,]')
@@ -143,9 +139,6 @@ class ChineseHumanizer(BaseHumanizer):
         changes = []
         result = text
 
-        result, new_changes = self._delete_ai_templates(result)
-        changes.extend(new_changes)
-
         result, new_changes = self._replace_ai_templates(result)
         changes.extend(new_changes)
 
@@ -158,24 +151,15 @@ class ChineseHumanizer(BaseHumanizer):
         result, new_changes = self._fix_tongguo_pattern(result)
         changes.extend(new_changes)
 
-        result, new_changes = self._remove_enum_words(result)
+        result, new_changes = self._replace_enum_words(result)
         changes.extend(new_changes)
 
-        result, new_changes = self._remove_em_dashes(result)
+        result, new_changes = self._replace_em_dashes(result)
         changes.extend(new_changes)
 
-        result, new_changes = self._clean_extra_commas(result)
+        result, new_changes = self._clean_extra_punctuation(result)
         changes.extend(new_changes)
 
-        return result, changes
-
-    def _delete_ai_templates(self, text: str) -> Tuple[str, List[str]]:
-        changes = []
-        result = text
-        for phrase in self.AI_TEMPLATE_DELETIONS:
-            if phrase in result:
-                result = result.replace(phrase, '')
-                changes.append(f"删除AI模板: {phrase}")
         return result, changes
 
     def _replace_ai_templates(self, text: str) -> Tuple[str, List[str]]:
@@ -193,7 +177,7 @@ class ChineseHumanizer(BaseHumanizer):
 
         def replace_suizhe(m):
             content = m.group(1)
-            changes.append(f"修复'随着'模板: 随着{content}，")
+            changes.append(f"修复'随着'模板: 随着{content}， -> {content}，")
             return f"{content}，"
 
         result = self.SUIZHE_PATTERN.sub(replace_suizhe, result)
@@ -231,17 +215,17 @@ class ChineseHumanizer(BaseHumanizer):
         result = self.TONGGUO_PATTERN.sub(replace_tongguo, result)
         return result, changes
 
-    def _remove_enum_words(self, text: str) -> Tuple[str, List[str]]:
+    def _replace_enum_words(self, text: str) -> Tuple[str, List[str]]:
         changes = []
         result = text
         for pattern, replacement in self.AI_ENUM_REPLACEMENTS:
             new_result, count = re.subn(pattern, replacement, result)
             if count > 0:
                 result = new_result
-                changes.append(f"移除编号词: {pattern}")
+                changes.append(f"替换编号词: {pattern} -> {replacement}")
         return result, changes
 
-    def _remove_em_dashes(self, text: str) -> Tuple[str, List[str]]:
+    def _replace_em_dashes(self, text: str) -> Tuple[str, List[str]]:
         changes = []
         result = text
         if '——' in result:
@@ -249,7 +233,7 @@ class ChineseHumanizer(BaseHumanizer):
             changes.append("替换破折号为'，即'")
         return result, changes
 
-    def _clean_extra_commas(self, text: str) -> Tuple[str, List[str]]:
+    def _clean_extra_punctuation(self, text: str) -> Tuple[str, List[str]]:
         changes = []
         result = text
         result = re.sub(r'^[，,]', '', result)
