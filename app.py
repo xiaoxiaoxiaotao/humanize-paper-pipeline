@@ -601,6 +601,49 @@ ENGLISH_METRIC_FEEDBACK = {
 }
 
 
+def generate_simple_feedback(ai_score: int, ai_details: dict, thresholds: dict, is_en: bool) -> str:
+    """
+    基于总分和得分最高的子指标，生成简洁的修复反馈
+    只关注得分最高的3个问题，给出简短可操作的建议
+    """
+    if not ai_details or 'metrics' not in ai_details:
+        if is_en:
+            return f"Current AI score: {ai_score}/100 (target < 35). Continue removing AI patterns with minimal edits."
+        return f"当前AI总分: {ai_score}/100（目标 < 35）。继续用最小幅度修改去除AI痕迹。"
+
+    metrics = ai_details['metrics']
+    scored_metrics = []
+    for metric_key, threshold_info in thresholds.items():
+        metric_data = metrics.get(metric_key, {})
+        score = metric_data.get('score', 0)
+        if score > 0:
+            scored_metrics.append({
+                'key': metric_key,
+                'description': threshold_info['description'],
+                'score': score,
+                'details': metric_data.get('details', ''),
+            })
+    scored_metrics.sort(key=lambda x: x['score'], reverse=True)
+    top_issues = scored_metrics[:3]
+
+    feedback_lib = CHINESE_METRIC_FEEDBACK if not is_en else ENGLISH_METRIC_FEEDBACK
+
+    if is_en:
+        parts = [f"Current AI score: {ai_score}/100 (target < 35). Top issues to fix:"]
+        for idx, m in enumerate(top_issues, 1):
+            short_feedback = feedback_lib.get(m['key'], f"{m['description']} (score: {m['score']})")
+            parts.append(f"{idx}. {short_feedback}")
+        parts.append("Remember: minimal edits only. Keep 95%+ of the text unchanged.")
+    else:
+        parts = [f"当前AI总分: {ai_score}/100（目标 < 35）。主要问题："]
+        for idx, m in enumerate(top_issues, 1):
+            short_feedback = feedback_lib.get(m['key'], f"{m['description']}（得分: {m['score']}）")
+            parts.append(f"{idx}. {short_feedback}")
+        parts.append("记住：只做最小幅度修改，保持95%以上原文不变。")
+
+    return "\n".join(parts)
+
+
 def generate_metric_feedback(ai_details: dict, thresholds: dict, is_en: bool) -> str:
     """
     根据每项检测指标的通过情况，生成有针对性的可解释反馈
@@ -700,117 +743,74 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     extra_tone_en = tone_rules_en.get(tone, tone_rules_en["学术书面 (Formal Academic)"])
     extra_tone_zh = tone_rules_zh.get(tone, tone_rules_zh["学术书面 (Formal Academic)"])
 
-    prompt_en = f"""You are an expert editor who humanizes academic writing.
-    Your goal is to transform the provided AI-generated text into authentic human writing according to the specified tone.
+    prompt_en = f"""You are a text editor. Your task: make minimal edits to remove AI patterns while keeping 95%+ of the original text unchanged.
 
-    {extra_tone_en}
+{extra_tone_en}
 
-    [CRITICAL - Content Fidelity Principle]:
-    - You MUST preserve ALL substantive information from the original text, including arguments, methods, results, data, and conclusions.
-    - Your task is to change HOW information is expressed, not WHAT information is conveyed.
-    - The rewritten text should be approximately the same length as the original.
-    
-    [ABSOLUTE PROHIBITION - No New Content]:
-    - NEVER add new arguments, viewpoints, or conclusions not present in the original.
-    - NEVER fabricate data, experimental results, or performance metrics not in the original.
-    - NEVER add examples, cases, or applications not mentioned in the original.
-    - NEVER add explanations, background knowledge, or technical details not in the original.
-    - NEVER introduce technical terms, method names, or algorithm names not in the original.
-    - You can only change expression style, NOT add information. If original says "significant improvement", you can say "notable improvement", but NOT "30% improvement" (unless original has this data).
-    - If a concept is briefly explained in original, keep it brief in rewrite - do NOT supplement explanations.
-    - Verification: After rewriting, check each sentence to ensure it has a corresponding information source in the original. If not found, you added new content - DELETE IT.
+[EDITING RULES - Follow Strictly]:
+1. KEEP sentence structure and word order - NEVER rewrite sentences
+2. ONLY make these two types of changes:
+   🟢 ADD: Insert natural transitions/connectors (e.g., "and then", "specifically", "in this case") to improve flow
+   🔴 DELETE: Remove AI template phrases only (see list below)
+3. NEVER add new information, examples, or explanations not in original
+4. Keep LaTeX formulas exactly as they are
 
-    Apply the following core strategies:
-    1. Vary Sentence Rhythm (Burstiness): Mix short punchy sentences (5-10 words) with medium (15-20) and long complex ones (25-35+). Break up uniform sentence lengths.
-    2. Reduce Abstract Scaffolding: Remove vague placeholder phrases like "various aspects", "in terms of", "multiple factors". Replace them with specific concepts, named theories, or concrete examples.
-    3. Eliminate Mechanical Transitions: Remove formulaic connectors like "Moreover,", "Furthermore,", "Additionally,". Use implicit logic or varied transitions.
-    4. Add Natural Voice: Show critical engagement and use natural academic terminology appropriate to the field.
-    5. Ground in Specificity: Use concrete contexts instead of generic statements.
+[DELETE These AI Patterns]:
+- "Moreover,", "Furthermore,", "Additionally," → delete or replace with implicit logic
+- "It is important/worth noting that" → delete, just state the point
+- "plays an important/crucial role" → "is important for" or just describe function
+- "various aspects", "multiple factors", "in terms of" → be specific or delete
+- "With the development of..." → start with the subject directly
+- "In conclusion", "To summarize", "Taken together" → delete
+- "Firstly", "Secondly", "Lastly" → delete numbering
+- "It can be seen that", "It has been shown that" → delete
+- "significant impact", "profound effect" → be specific
+- "serves as", "acts as", "functions as" → "is" or describe directly
 
-    Format Constraints:
-    - Keep LaTeX formulas and formatting exactly as they are.
-    - Output ONLY the rewritten text, with no explanations or rationale block.
-    """
+[ADD These Natural Connectors - Examples]:
+- Before technical details: "In detail," / "To be precise,"
+- After introducing method: "This approach" / "The method"
+- Between related points: "Then," / "As a result,"
+- When elaborating: "Namely," / "Put differently,"
 
-    prompt_zh = f"""你是一位专门润色学术文本的资深人类编辑。
-    你的核心任务是去除文本中浮夸、空洞、机械的AI生成痕迹，将其转化为符合指定风格要求的人类真实表述。
+Output ONLY the edited text. Make 5-15 small changes per paragraph.
+"""
 
-    {extra_tone_zh}
+    prompt_zh = f"""你是一位文本编辑。任务：对原文做最小幅度的修改，去除AI痕迹，同时保留95%以上的原文内容不变。
 
-    【最高优先级——内容保真原则】：
-    - 润色后必须保留原文所有实质性信息，包括论点、实验方法、实验结果、数据指标、结论。不得遗漏任何事实性内容。
-    - 润色的目的是改写表达方式，而非删减内容。
-    - 润色后字数应与原文大致相当，不得大幅缩水。
-    
-    【严禁添加新内容——这是红线】：
-    - 绝对禁止添加原文没有的新论点、新观点、新结论。
-    - 绝对禁止编造原文没有的数据、实验结果、性能指标。
-    - 绝对禁止添加原文没有的例子、案例、应用场景。
-    - 绝对禁止添加原文没有的解释、背景知识、技术细节。
-    - 绝对禁止引入原文没有的专业术语、方法名称、算法名称。
-    - 改写只能改变表达方式，不能增加信息量。如果原文说"效果显著"，改写后可以说"效果明显"，但不能说"效果提升了30%"（除非原文有这个数据）。
-    - 如果原文某个概念解释得简略，改写后也必须保持简略，不能自己补充解释。
-    - 检查方法：改写完成后，逐句检查每一句话是否都能在原文中找到对应的信息来源。如果找不到，说明你添加了新内容，必须删除。
+{extra_tone_zh}
 
-    请应用以下核心策略：
-    1. 增加句式错落感（Burstiness）：打破平均句长的均匀分布，交叉使用长短句。注意：长短句都要有完整信息量，不是为了短而短。
-    2. 提纯词汇（降维）：将AI高频的伪高级大词替换为具体客观的表述。注意是"替换"而非"删除"。
-    3. 消除机械答题模式：极力避免编号逻辑结构（如"首先、其次、综上所述"），通过内容的内在逻辑来衔接段落。
-    4. 移除机器排版风格：禁止将文字改写成加粗短语起手的垂直列表。
-    5. 保持学术性：这是学术论文，不是博客或口语对话。避免过度口语化，避免使用问句形式，保持专业术语的准确使用。
-    6. 原样保留所有的LaTeX公式。
+【编辑规则——严格遵守】：
+1. ✅ 保持原有句式结构和语序 —— 绝对不能重写句子
+2. ✅ 只允许两种修改：
+   🟢 添加：在适当位置插入自然的过渡词、连接词
+   🔴 删除：只删除明显的AI模板化表达（见下方列表）
+3. ❌ 绝不添加原文没有的新信息、例子、解释
+4. ✅ 原样保留所有LaTeX公式
 
-    【需要替换的AI味表达】：
-    - 旨在 → 替换为"为了"、"目的是"或直接省略
-    - 总体来看 / 总体而言 / 整体来看 → 替换为直接陈述结论
-    - 似乎 / 可能表明 / 或可 / 或可为 → 替换为更确定的表述
-    - 在一定程度上 / 在某种程度上 → 替换为具体化表述
-    - 有效解决了 → 替换为具体描述解决了什么问题
-    - 实现了...的良好平衡 → 替换为具体说明平衡了什么
-    - 核心痛点 → 替换为"主要问题"、"难点"
-    - 综上所述 / 总而言之 / 由此可见 → 替换为用内容自然收束
-    - 值得注意的是 / 需要强调的是 → 替换为直接说重点
-    - 不可或缺 / 至关重要 / 举足轻重 → 替换为"重要"、"关键"等朴素词
-    - 发挥着重要作用 → 替换为更具体的描述
-    - 具有重要的现实意义 → 替换为具体说明有什么实际用途
-    - 本文将重点研究 / 本文旨在 / 本文拟 → 替换为更自然的论文引入方式
+【必须删除的AI模板表达】：
+- "随着...的..." → 删除"随着"，直接以主语开头
+- "基于...的..." → 改为"使用/采用...的"
+- "综上所述/总而言之/由此可见" → 删除
+- "值得注意的是/需要强调的是/需要指出的是" → 删除
+- "首先/其次/再次/最后" → 删除编号词
+- "具有重要意义/发挥着重要作用" → 改为"重要"
+- "不可或缺/至关重要/举足轻重" → 改为"重要/关键/必要"
+- "旨在/本文旨在" → 改为"为了/本文为了"
+- "在一定程度上/在某种程度上" → 删除
+- "显而易见/毫无疑问" → 删除
+- "扮演着/扮演了" → 改为"作为"
+- "直接决定了" → 改为"影响着"
 
-    【知网/万方/维普检测系统重点识别的AI特征——必须避免】：
-    1. "随着...的..."模板句式：如"随着深度学习的兴起"——改为"深度学习兴起之后"等更自然的表达。
-    2. "基于...的..."模板句式：如"基于深度学习的目标检测算法"——改为"使用深度学习的目标检测算法"。
-    3. "是...的"定义式堆砌：如"建筑行业是国民经济的重要引擎"——改为更自然的主动句。
-    4. 多层定语嵌套：改为简洁独立的句子。
-    5. 段落结构模板化：避免"背景→问题→意义→本文方案"的机械四段式结构。
-    6. 引用全部集中在句末：尝试将引用放在句中。
-    7. "因此"、"然而"等逻辑连接词密度过高：用语义衔接替代显式连接词。
-    8. 信息密度均匀：刻意制造起伏——有的句子较短（10-15字），有的较长（30-50字）。
+【可以添加的自然连接词】：
+- "接着，"、"而"、"于是，"、"从而，"
 
-    【严禁出现的改写方式】：
-    - 禁止将完整句子拆成碎片短句如"时间缩短了。速度加快了。"——这是口语，不是学术写作
-    - 禁止使用问句形式如"前景还是背景？"——学术论文不用问句
-    - 禁止过度简化导致信息丢失——每个技术细节都要保留
-    - 禁止使用"在上升"、"在改善"等口语化表达——保持"提高了"、"改善了"等学术表达
-
-    【可以保留的正常学术表达】：
-    - "构建了"、"提出了"、"确立了" — 标准学术动词
-    - "智能化"、"自动化" — 在CS/工程领域是专业术语
-    - "显著"、"高效" — 有具体数据支撑时可正常使用
-    - "此外"、"另外" — 偶尔使用是正常的
-    - "提升了效率"、"改善了性能" — 标准学术表达
-
-    【关键原则】：
-    - 写得像人，不是写得像"试图模仿人的AI"。人类学术写作的特点是：直接、具体、有逻辑、保持专业性。
-    - 不要为了显得"谨慎"而堆砌对冲词。
-    - 每句话都要有信息增量，有信息量的句子绝对不能删。
-    - 保持学术文本的正式性，不要过度口语化。
-
-    格式要求：
-    - 不要解释，禁止输出排版花样，直接输出纯净还原为自然连贯的段落文本。
-    """
+每段只做5-15处小改动。直接输出修改后的纯净文本。
+"""
 
     system_prompt = prompt_en if lang == "English" else prompt_zh
     is_en = (lang == "English")
-    MAX_ROUNDS = 12
+    MAX_ROUNDS = 8
     thresholds = ENGLISH_METRIC_THRESHOLDS if is_en else CHINESE_METRIC_THRESHOLDS
 
     messages = [
@@ -848,25 +848,15 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
             if round_num == 1:
                 st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: 初始改写...")
             else:
-                failing = get_failing_metrics(ai_details, thresholds)
-                failing_names = [m['description'] for m in failing]
-                passing = get_passing_metrics(ai_details, thresholds)
-                passing_names = [p['description'] for p in passing]
-                summary_parts = []
-                if failing_names:
-                    summary_parts.append(f"❌ {len(failing)}项未通过: {'、'.join(failing_names)}")
-                if passing_names:
-                    summary_parts.append(f"✅ {len(passing)}项已通过: {'、'.join(passing_names)}")
-                summary = " | ".join(summary_parts)
-                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: {summary}")
+                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: 当前总分 {ai_score}/100，目标 < 35")
 
             def make_round_call():
                 return client.chat.completions.create(
                     model=model_id,
                     messages=messages,
-                    temperature=0.75 + (round_num - 1) * 0.05,
-                    frequency_penalty=0.3 + (round_num - 1) * 0.05,
-                    presence_penalty=0.2 + (round_num - 1) * 0.05
+                    temperature=0.7 + (round_num - 1) * 0.05,
+                    frequency_penalty=0.2 + (round_num - 1) * 0.04,
+                    presence_penalty=0.15 + (round_num - 1) * 0.03
                 )
 
             response_obj, error_msg = make_api_call_with_retry(make_round_call)
@@ -880,24 +870,14 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
             st.write(f"🔬 第{round_num}轮评估的AI近似指纹分数: {ai_score}/100")
 
             if ai_details:
-                with st.expander(f"第{round_num}轮AI评估详细指标 (逐项通过状态)"):
+                with st.expander(f"第{round_num}轮AI评估详细指标"):
                     metrics = ai_details.get('metrics', {})
-                    pass_count = 0
-                    fail_count = 0
                     for metric_key, threshold_info in thresholds.items():
                         metric_data = metrics.get(metric_key, {})
-                        passes = check_metric_pass(metric_data, threshold_info)
-                        if passes:
-                            pass_count += 1
-                        else:
-                            fail_count += 1
-                        status = "✅" if passes else "❌"
-                        desc = threshold_info['description']
                         metric_score = metric_data.get('score', 0)
-                        max_score = threshold_info['max_score']
+                        desc = threshold_info['description']
                         details_str = metric_data.get('details', '')
-                        st.write(f"{status} {desc}: {metric_score}分 (阈值≤{max_score}) — {details_str}")
-                    st.write(f"---\n通过: {pass_count}/{len(thresholds)} | 未通过: {fail_count}/{len(thresholds)}")
+                        st.write(f"• {desc}: {metric_score}分 — {details_str}")
                     
                     with st.expander("📄 查看本轮修复后的文本"):
                         st.text_area(f"第{round_num}轮修复文本", revised, height=300, key=f"revised_text_round_{round_num}")
@@ -918,38 +898,23 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
                 except Exception:
                     pass
 
-            all_pass, _ = check_all_metrics_pass(ai_details, thresholds)
-
             current_quality = calculate_quality_metrics(revised, lang)
             quality_warning = check_quality_degradation(original_quality, current_quality)
 
-            # 双重达标条件：所有子指标通过 且 总分低于35
-            if all_pass and ai_score < 35:
-                st.success(f"✅ 所有 {len(thresholds)} 项检测指标均已通过阈值，且总分 {ai_score} < 35！共迭代 {round_num} 轮。")
+            if ai_score < 35:
+                st.success(f"✅ AI总分 {ai_score} < 35，达标！共迭代 {round_num} 轮。")
                 break
 
             if quality_warning:
                 st.warning(f"⚠️ 质量下降警告: {quality_warning}")
 
             if round_num < MAX_ROUNDS:
-                feedback_str = generate_metric_feedback(ai_details, thresholds, is_en)
-                # 如果子指标都通过但总分还太高，添加总分优化提示
-                if all_pass and ai_score >= 35:
-                    if is_en:
-                        feedback_str += f"\n\n[Overall Score Alert]: All sub-metrics pass, but overall AI score is still {ai_score} (target < 35). Continue reducing AI patterns to lower the total score."
-                    else:
-                        feedback_str += f"\n\n【总分优化提示】: 所有子指标均已通过，但总体AI分数仍为 {ai_score}（目标 < 35）。请继续减少AI痕迹，进一步降低总分。"
+                feedback_str = generate_simple_feedback(ai_score, ai_details, thresholds, is_en)
                 if quality_warning:
                     feedback_str += "\n\n" + get_quality_preservation_prompt(quality_warning, is_en)
                 messages.append({"role": "user", "content": feedback_str})
             else:
-                failing = get_failing_metrics(ai_details, thresholds)
-                if all_pass and ai_score >= 35:
-                    st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，所有子指标已通过，但总分 {ai_score} 仍 ≥ 35。建议手动微调降低总分。")
-                else:
-                    st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，仍有 {len(failing)} 项指标未通过。建议手动微调。")
-                    for m in failing:
-                        st.warning(f"   ❌ {m['description']}: {m['current_score']}分 (阈值: ≤{m['max_score']}分)")
+                st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，总分 {ai_score} 仍 ≥ 35。建议手动微调。")
 
         if lang == "Chinese":
             revised = format_clean_chinese(revised)

@@ -1,8 +1,3 @@
-"""
-维普人类化器 - 定向优化版
-针对维普AIGC检测算法的对抗性人类化
-"""
-
 import re
 import random
 from typing import Dict, List, Tuple, Optional
@@ -11,153 +6,192 @@ from .base_humanizer import BaseHumanizer
 
 
 class VIPHumanizer(BaseHumanizer):
-    """
-    维普人类化器
-    针对维普AIGC检测算法的定向人类化优化
-    """
-    
-    # 维普指纹词替换库
-    VIP_FINGERPRINT_REPLACEMENTS = {
-        '首先': ['开篇来说', '最开始', '第一点', '首先需要'],
-        '其次': ['再者', '第二点', '接着', '然后'],
-        '再次': ['此外还有', '另外', '补充说明'],
-        '最后': ['综上', '最终', '结尾部分'],
-        '综上所述': ['综合来看', '基于以上', '从整体而言'],
-        '总而言之': ['整体而言', '综合判断', '总的来说'],
-        '由此可见': ['可见', '说明', '表明'],
-        '值得注意的是': ['需要关注的是', '值得留意的是'],
-        '显而易见': ['明显', '显然', '不言而喻'],
-        '随着': ['近年来', '当前', '在这个阶段'],
-        '基于': ['根据', '依据', '通过'],
-        '通过': ['利用', '采用', '使用'],
-        '存在问题': ['这里有个问题', '遇到些问题', '有些不足'],
-        '面临困境': ['遇到困难', '有些挑战', '有点麻烦'],
-        '针对不足': ['考虑到不足', '针对缺点', '针对问题'],
-        '具有重要意义': ['很有价值', '值得关注', '挺重要的'],
-        '发挥重要作用': ['起到作用', '很重要', '很关键'],
+
+    VIP_TEMPLATE_DELETIONS = [
+        '综上所述',
+        '总而言之',
+        '由此可见',
+        '值得注意的是',
+        '需要强调的是',
+        '需要指出的是',
+        '在一定程度上',
+        '在某种程度上',
+        '显而易见',
+        '毫无疑问',
+        '不言而喻',
+        '毋庸置疑',
+        '众所周知',
+        '总体来说',
+        '总体而言',
+        '一般而言',
+        '简而言之',
+        '进一步而言',
+        '进一步说',
+        '换言之',
+        '可以说',
+        '不可否认',
+    ]
+
+    VIP_TEMPLATE_REPLACEMENTS = {
+        '随着': '',
+        '基于': '使用',
+        '旨在': '为了',
+        '发挥着重要作用': '很重要',
+        '发挥着关键作用': '很关键',
+        '具有重要意义': '很重要',
+        '具有重要价值': '很有价值',
+        '不可或缺': '必要',
+        '至关重要': '关键',
+        '举足轻重': '重要',
+        '扮演着': '作为',
+        '扮演了': '作为',
+        '充当着': '作为',
+        '充当了': '作为',
+        '直接决定了': '影响着',
+        '直接决定': '影响',
+        '存在问题': '有些不足',
+        '面临困境': '遇到困难',
+        '针对不足': '针对问题',
+        '极大地': '大幅',
+        '催生了': '带来了',
+        '开创了': '提出了',
+        '显著提升了': '提升了',
+        '有效提升了': '提升了',
+        '创新性地': '创新地',
+        '蓬勃发展': '发展',
+        '突飞猛进': '快速发展',
+        '日新月异': '快速变化',
+        '势在必行': '必须',
+        '应运而生': '出现',
+        '层出不穷': '不断出现',
+        '相辅相成': '互相配合',
+        '密不可分': '紧密相关',
+        '息息相关': '相关',
+        '行之有效': '有效',
+        '卓有成效': '有效',
+        '首要步骤': '第一步',
+        '首要任务': '核心任务',
+        '首要目标': '核心目标',
+        '首先': '',
+        '其次': '接着',
+        '再次': '另外',
+        '最后': '',
     }
-    
-    # 维普机械模式打破器
-    VIP_MECHANICAL_BREAKERS = [
-        '但这里有个问题：',
-        '不过我们需要思考的是：',
-        '有意思的是，实际情况可能更复杂。',
-        '说起来，这里有个细节需要注意。',
-        '从实际经验看，情况可能不太一样。',
-        '坦白说，这个问题没那么简单。',
-        '不过，这个观点或许需要修正。',
-        '需要指出的是，这个结论可能有争议。',
-    ]
-    
-    # 维普认知特征注入
-    VIP_COGNITIVE_INJECTIONS = [
-        '说起来，我之前遇到过类似的情况。',
-        '根据我的观察，这个问题其实更复杂一些。',
-        '不过，需要考虑实际情况可能有偏差。',
-        '有个疑问：这个结论在实际中是否完全适用？',
-        '基于经验来看，可能还需要考虑其他因素。',
-        '不过我的理解可能有限，欢迎指正。',
-        '有意思的是，实操中可能会遇到各种意外。',
-        '从经验判断，这里可能需要进一步验证。',
-    ]
-    
+
+    SUIZHE_PATTERN = re.compile(r'随着([^，。的了]+?的[^，。]*)[，,]')
+    JIYU_PATTERN = re.compile(r'基于([^，。的了]+?的[^，。]*)')
+    TONGGUO_PATTERN = re.compile(r'通过([^，。的了]+?的[^，。]*)')
+
     def __init__(self):
         super().__init__(name="VIP Humanizer")
-    
+
     def humanize(self, text: str) -> Tuple[str, List[str]]:
-        """
-        对文本进行维普定向人类化处理
-        
-        Args:
-            text: 要人类化的文本
-            
-        Returns:
-            (humanized_text, list_of_changes)
-        """
         changes = []
         result = text
-        
-        # 1. 打破维普语义指纹
-        result, new_changes = self._break_semantic_fingerprints(result)
+
+        result, new_changes = self._delete_ai_templates(result)
         changes.extend(new_changes)
-        
-        # 2. 打破维普机械模式
-        result, new_changes = self._break_mechanical_patterns(result)
+
+        result, new_changes = self._replace_ai_templates(result)
         changes.extend(new_changes)
-        
-        # 3. 注入维普认知特征
-        result, new_changes = self._inject_cognitive_features(result)
+
+        result, new_changes = self._fix_suizhe_pattern(result)
         changes.extend(new_changes)
-        
-        # 4. 变化句式结构
-        result, new_changes = self._vary_sentence_structures(result)
+
+        result, new_changes = self._fix_jiyu_pattern(result)
         changes.extend(new_changes)
-        
-        # 5. 处理可疑数据
-        result, new_changes = self._process_suspicious_data(result)
+
+        result, new_changes = self._fix_tongguo_pattern(result)
         changes.extend(new_changes)
-        
+
+        result, new_changes = self._reduce_data_precision(result)
+        changes.extend(new_changes)
+
+        result, new_changes = self._clean_extra_commas(result)
+        changes.extend(new_changes)
+
         return result, changes
-    
-    def _break_semantic_fingerprints(self, text: str) -> Tuple[str, List[str]]:
-        """打破维普关注的语义指纹"""
-        return self._replace_patterns(text, self.VIP_FINGERPRINT_REPLACEMENTS)
-    
-    def _break_mechanical_patterns(self, text: str) -> Tuple[str, List[str]]:
-        """打破维普检测的机械模式"""
-        return self._random_insert(text, self.VIP_MECHANICAL_BREAKERS, 0.35)
-    
-    def _inject_cognitive_features(self, text: str) -> Tuple[str, List[str]]:
-        """注入维普定向的认知特征"""
-        return self._random_insert(text, self.VIP_COGNITIVE_INJECTIONS, 0.25)
-    
-    def _vary_sentence_structures(self, text: str) -> Tuple[str, List[str]]:
-        """变化句式结构，避免重复"""
-        sentences = self._split_sentences(text, chinese=True)
-        result = []
-        changes = []
-        
-        for i in range(0, len(sentences), 2):
-            sent = sentences[i]
-            punct = sentences[i+1] if i+1 < len(sentences) else ''
-            
-            if len(sent.strip()) > 20 and random.random() < 0.3:
-                # 随机添加一些变化前缀
-                prefixes = ['不过，', '实际上，', '说起来，', '坦白说，']
-                prefix = random.choice(prefixes)
-                result.append(prefix + sent)
-                changes.append(f"添加前缀: {prefix}")
-            else:
-                result.append(sent)
-            
-            result.append(punct)
-        
-        return ''.join(result), changes
-    
-    def _process_suspicious_data(self, text: str) -> Tuple[str, List[str]]:
-        """处理维普检测的可疑数据"""
+
+    def _delete_ai_templates(self, text: str) -> Tuple[str, List[str]]:
         changes = []
         result = text
-        
-        # 降低数据精度，处理过于精确的数字
+        for phrase in self.VIP_TEMPLATE_DELETIONS:
+            if phrase in result:
+                result = result.replace(phrase, '')
+                changes.append(f"删除AI模板: {phrase}")
+        return result, changes
+
+    def _replace_ai_templates(self, text: str) -> Tuple[str, List[str]]:
+        changes = []
+        result = text
+        for old, new in self.VIP_TEMPLATE_REPLACEMENTS.items():
+            if old in result:
+                result = result.replace(old, new)
+                changes.append(f"替换AI模板: {old} -> {new or '(删除)'}")
+        return result, changes
+
+    def _fix_suizhe_pattern(self, text: str) -> Tuple[str, List[str]]:
+        changes = []
+        result = text
+
+        def replace_suizhe(m):
+            content = m.group(1)
+            changes.append(f"修复'随着'模板: 随着{content}，")
+            return f"{content}，"
+
+        result = self.SUIZHE_PATTERN.sub(replace_suizhe, result)
+        return result, changes
+
+    def _fix_jiyu_pattern(self, text: str) -> Tuple[str, List[str]]:
+        changes = []
+        result = text
+
+        def replace_jiyu(m):
+            content = m.group(1)
+            if content.endswith('的'):
+                new_content = content[:-1]
+            else:
+                new_content = content
+            changes.append(f"修复'基于'模板: 基于{content} -> 使用{new_content}")
+            return f"使用{new_content}"
+
+        result = self.JIYU_PATTERN.sub(replace_jiyu, result)
+        return result, changes
+
+    def _fix_tongguo_pattern(self, text: str) -> Tuple[str, List[str]]:
+        changes = []
+        result = text
+
+        def replace_tongguo(m):
+            content = m.group(1)
+            if content.endswith('的'):
+                new_content = content[:-1]
+            else:
+                new_content = content
+            changes.append(f"修复'通过'模板: 通过{content} -> 利用{new_content}")
+            return f"利用{new_content}"
+
+        result = self.TONGGUO_PATTERN.sub(replace_tongguo, result)
+        return result, changes
+
+    def _reduce_data_precision(self, text: str) -> Tuple[str, List[str]]:
+        changes = []
+        result = text
         precise_number_pattern = r'(\d+)\.\d{2,}'
-        
+
         def reduce_precision(match):
             num_part = match.group(1)
             changes.append(f"降低数据精度: {match.group(0)} -> {num_part}")
             return num_part
-        
+
         result = re.sub(precise_number_pattern, reduce_precision, result)
-        
-        # 替换夸张的倍数表达
-        exaggerated_patterns = [
-            (r'(\d+)倍(?:增长|提高)', '大幅增长'),
-            (r'(?:高达|约为|接近|约)(\d+)%', '显著增长'),
-        ]
-        
-        for pattern, replacement in exaggerated_patterns:
-            if re.search(pattern, result):
-                result = re.sub(pattern, replacement, result)
-                changes.append(f"替换夸张表达: {pattern[:30]}...")
-        
+        return result, changes
+
+    def _clean_extra_commas(self, text: str) -> Tuple[str, List[str]]:
+        changes = []
+        result = text
+        result = re.sub(r'^[，,]', '', result)
+        result = re.sub(r'([。！？])\s*[，,]', r'\1', result)
+        result = re.sub(r'[，,]{2,}', '，', result)
+        result = re.sub(r'。\s*。', '。', result)
         return result, changes
