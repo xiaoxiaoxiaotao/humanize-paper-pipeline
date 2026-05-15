@@ -497,19 +497,19 @@ class ChineseDetector(BaseDetector):
         density = total_ai_words / (len(chinese_chars) / 100)
 
         metric_score = 0
-        if total_types >= 5:
-            metric_score = 15
+        if total_types >= 6:
+            metric_score = 12
+        elif total_types >= 5:
+            metric_score = 8
         elif total_types >= 4:
-            metric_score = 10
-        elif total_types >= 3:
-            metric_score = 6
+            metric_score = 5
 
-        if density > 5:
-            metric_score += 6
-        elif density > 3:
+        if density > 6:
+            metric_score += 5
+        elif density > 4:
             metric_score += 3
 
-        metric_score = min(20, metric_score)
+        metric_score = min(15, metric_score)
 
         details['metrics']['ai_verb_density'] = {
             'verb_count': verb_count,
@@ -1751,6 +1751,8 @@ class ChineseDetector(BaseDetector):
             '引入了', '采用了', '提出了', '完成了',
             '改善了', '促进了', '推动了', '强化了',
             '开创了', '赋予了', '确保了', '满足了',
+            '取得了', '达到了', '获得了', '证明了',
+            '展示了', '验证了', '确认了', '确立了',
         ]
         total_count = 0
         found = []
@@ -1769,6 +1771,8 @@ class ChineseDetector(BaseDetector):
             metric_score = 5
         elif total_count >= 2:
             metric_score = 3
+        elif total_count >= 1:
+            metric_score = 1
 
         details['metrics']['ai_completion_pattern'] = {
             'count': total_count,
@@ -1789,6 +1793,10 @@ class ChineseDetector(BaseDetector):
             (r'为[\u4e00-\u9fa5]{1,10}提供[\u4e00-\u9fa5]{1,6}', '为X提供Y'),
             (r'将[\u4e00-\u9fa5]{1,10}(送入|输入|传入|馈入)', '将X送入'),
             (r'均[\u4e00-\u9fa5]{1,4}', '均X'),
+            (r'其中[\u4e00-\u9fa5]{1,4}(包括|包含|涵盖)', '其中包含'),
+            (r'具体而言[，,]?', '具体而言'),
+            (r'换言之[，,]?', '换言之'),
+            (r'进一步而言[，,]?', '进一步而言'),
         ]
 
         total_count = 0
