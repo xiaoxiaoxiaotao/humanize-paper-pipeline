@@ -1,0 +1,9 @@
+{
+  "total": 62,
+  "ai_count": 41,
+  "human_count": 21,
+  "ai_avg_len": 534.9024390243902,
+  "human_avg_len": 388.14285714285717,
+  "source": "悉尼通信2203-李松桃0515-副本.docx_AIGC原文对照报告.pdf",
+  "description": "从维普AIGC查重报告中提取的正文段落，排除参考文献和致谢，短段落已合并"
+}

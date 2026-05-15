@@ -38,22 +38,32 @@ class ChineseDetector(BaseDetector):
         '当前', '现阶段', '无论', '不论',
     ]
 
+    AI_HIGH_FREQ_VERBS = [
+        '融合', '优化', '采用', '实现',
+        '提升', '增强', '引入', '构建',
+    ]
+
+    AI_HIGH_FREQ_NOUNS = [
+        '效率', '鲁棒性', '范式', '痛点',
+        '表征能力', '骨干网络', '性能上限',
+    ]
+
     ABSTRACT_PHRASES = [
         '具有重要意义', '发挥着重要作用', '至关重要',
         '不可或缺', '具有重要价值', '促进了发展',
-        '综上所述', '基于此', '因此', '然而',
+        '综上所述', '基于此',
         '具有重要的现实意义', '具有重要的应用价值',
         '具有重大意义', '成为关键', '重要引擎',
         '提供了有力', '实现了良好', '推动了发展',
         '具有深远意义', '具有广阔前景',
         '提供了坚实', '奠定了坚实', '打下了坚实',
-        '核心痛点', '技术方案', '强有力的支撑',
-        '坚实的基础', '取得了良好的效果',
-        '取得了显著的效果', '为...提供了',
-        '为...指明了方向', '起到了关键作用',
+        '核心痛点', '强有力的支撑',
+        '取得了良好的效果',
+        '取得了显著的效果',
+        '起到了关键作用',
         '起到了重要作用', '扮演着重要角色',
         '占据着重要地位', '具有不可替代的作用',
-        '核心思想', '设计理念', '端到端',
+        '核心思想', '设计理念',
         '吸引了大量关注', '引导了发展方向', '实现了超越',
         '带来了性能上的提升', '带来了提升',
         '不断引入', '逐步弥合',
@@ -61,25 +71,36 @@ class ChineseDetector(BaseDetector):
         '日益逼近', '向着更加',
         '颠覆性的', '大量关注', '发展方向',
         '真正意义上的',
-        '协同优化', '有效的算法支持', '有效的支持',
-        '基础框架', '轻量计算量', '轻量级',
-        '兼顾性能',
-        '频域特征', '特征建模', '特征增强',
         '扮演着', '扮演了', '充当着', '充当了',
-        '是...的前提', '是...的基础', '是...的关键',
         '逐级抽象', '制约着', '性能上限',
         '在很大程度上影响着', '在很大程度上',
-        '构成...的基本运算', '可以看作', '可以视为',
+        '可以看作', '可以视为',
         '逐步生成', '逐步构建', '逐步形成',
         '高维且', '语义信息丰富', '表征能力',
-        '骨干网络', '特征提取能力', '后续层',
-        '输入规格', '局部区域', '扫描整个',
-        '直接决定了', '直接决定', '决定了...上限',
-        '决定了...性能', '决定了...质量',
+        '骨干网络', '特征提取能力',
+        '直接决定了', '直接决定',
         '强大且高效', '高效且', '有效且',
-        '富含语义', '富含', '高维的',
+        '富含语义', '高维的',
         '首要步骤', '首要任务', '首要目标',
-        '送入', '输入到',
+        '送入',
+        '迫切需求', '持续演进', '研究进展',
+        '代表性成果', '各有优势与不足',
+        '驱动了', '催生了', '开创了',
+        '具体挑战包括', '主要包括',
+        '奠定了基础', '奠定了理论基础',
+        '技术范式', '技术方案',
+        '有效支持', '有效保障',
+        '显著提升', '有效提升', '大幅提升',
+        '实时推理', '自动告警',
+        '计算开销', '检测能力',
+        '局部细节', '细粒度',
+        '不同尺度', '多尺度特征',
+        '高分辨率特征', '分辨率特征',
+        '奠定了理论基础', '提供了技术基础',
+        '智能化升级', '安全管控水平',
+        '实际应用需求', '推理延迟低',
+        '被广泛应用', '自动化检测',
+        '理论实践兼备',
     ]
 
     TEMPLATE_PATTERNS = [
@@ -162,6 +183,20 @@ class ChineseDetector(BaseDetector):
         r'当前[，,][^，。]{2,40}无论',
         r'这个过程[^，。]{2,40}',
         r'因此[，,][^，。]{2,20}是[^，。]{2,30}的前提',
+        r'因此研发[^，。]{2,40}',
+        r'驱动了[^，。]{2,40}',
+        r'通过[^，。]{2,30}实现了[^，。]{2,40}',
+        r'能够[^，。]{2,10}实现[^，。]{2,40}',
+        r'进一步[^，。]{2,40}',
+        r'以满足[^，。]{2,40}',
+        r'进而提升[^，。]{2,40}',
+        r'从而实现[^，。]{2,40}',
+        r'具体挑战包括[^，。]{2,40}',
+        r'代表性成果[^，。]{2,40}',
+        r'各有优势与不足',
+        r'技术范式[^，。]{2,40}',
+        r'有效支持[^，。]{2,40}',
+        r'有效保障[^，。]{2,40}',
     ]
 
     HEDGE_WORDS = [
@@ -324,51 +359,49 @@ class ChineseDetector(BaseDetector):
         sentences = self.split_sentences(text, chinese=True)
         paragraphs = self.split_paragraphs(text)
 
-        if len(sentences) < 2 or not text.strip():
+        if not text.strip():
             return 0, details
 
-        score, details = self._analyze_sentence_length_distribution(sentences, score, details)
-        score, details = self._analyze_paragraph_structure_similarity(paragraphs, sentences, score, details)
-        score, details = self._analyze_info_density_distribution(sentences, score, details)
-        score, details = self._analyze_transition_word_distribution(text, sentences, score, details)
-
-        score, details = self._analyze_sentence_uniformity(sentences, score, details)
-        score, details = self._analyze_transition_overuse(text, score, details)
         score, details = self._analyze_abstract_language(text, score, details)
-        score, details = self._analyze_sentence_opening_repetition(sentences, score, details)
         score, details = self._analyze_templates(text, score, details)
-        score, details = self._analyze_word_burstiness(text, score, details)
-
+        score, details = self._analyze_ai_verb_density(text, score, details)
         score, details = self._analyze_over_hedging(text, score, details)
-        score, details = self._analyze_bigram_ttr(text, score, details)
-        score, details = self._analyze_clause_chain_density(text, sentences, score, details)
-        score, details = self._analyze_idiom_overuse(text, score, details)
-        score, details = self._analyze_punctuation_density(text, score, details)
-        score, details = self._analyze_concluding_formula(text, score, details)
-        score, details = self._analyze_suizhe_template(text, score, details)
-        score, details = self._analyze_paragraph_template(paragraphs, score, details)
-        score, details = self._analyze_definition_pattern(text, score, details)
-        score, details = self._analyze_em_dash_overuse(text, score, details)
-        score, details = self._analyze_citation_distribution(text, score, details)
-
         score, details = self._analyze_absolute_language(text, score, details)
-        score, details = self._analyze_correlative_conjunctions(text, score, details)
-        score, details = self._analyze_ai_adjectives(text, score, details)
-        score, details = self._analyze_purpose_clauses(text, score, details)
-        score, details = self._analyze_sentence_structure_pattern(sentences, text, score, details)
+        score, details = self._analyze_verbose_expressions(text, score, details)
+        score, details = self._analyze_concluding_formula(text, score, details)
+        score, details = self._analyze_idiom_overuse(text, score, details)
+        score, details = self._analyze_technical_patterns(text, score, details)
         score, details = self._analyze_role_playing_pattern(text, score, details)
         score, details = self._analyze_premise_conclusion_pattern(text, score, details)
+        score, details = self._analyze_suizhe_template(text, score, details)
+        score, details = self._analyze_definition_pattern(text, score, details)
+        score, details = self._analyze_ai_adjectives(text, score, details)
+        score, details = self._analyze_purpose_clauses(text, score, details)
+        score, details = self._analyze_em_dash_overuse(text, score, details)
 
-        score, details = self._analyze_vip_semantic_fingerprints(text, score, details)
-        score, details = self._analyze_vip_mechanical_patterns(text, score, details)
-        score, details = self._analyze_vip_data_authenticity(text, score, details)
-
-        # 新增技术文本特征检测
-        score, details = self._analyze_technical_patterns(text, score, details)
-        score, details = self._analyze_chain_description(text, score, details)
-        score, details = self._analyze_passive_voice_density(text, sentences, score, details)
-        score, details = self._analyze_sentence_complexity(text, sentences, score, details)
-        score, details = self._analyze_verbose_expressions(text, score, details)
+        if len(sentences) >= 2:
+            score, details = self._analyze_sentence_length_distribution(sentences, score, details)
+            score, details = self._analyze_paragraph_structure_similarity(paragraphs, sentences, score, details)
+            score, details = self._analyze_info_density_distribution(sentences, score, details)
+            score, details = self._analyze_transition_word_distribution(text, sentences, score, details)
+            score, details = self._analyze_sentence_uniformity(sentences, score, details)
+            score, details = self._analyze_transition_overuse(text, score, details)
+            score, details = self._analyze_sentence_opening_repetition(sentences, score, details)
+            score, details = self._analyze_word_burstiness(text, score, details)
+            score, details = self._analyze_bigram_ttr(text, score, details)
+            score, details = self._analyze_clause_chain_density(text, sentences, score, details)
+            score, details = self._analyze_punctuation_density(text, score, details)
+            score, details = self._analyze_paragraph_template(paragraphs, score, details)
+            score, details = self._analyze_citation_distribution(text, score, details)
+            score, details = self._analyze_correlative_conjunctions(text, score, details)
+            score, details = self._analyze_sentence_structure_pattern(sentences, text, score, details)
+            score, details = self._analyze_passive_voice_density(text, sentences, score, details)
+            score, details = self._analyze_sentence_complexity(text, sentences, score, details)
+            score, details = self._analyze_comma_density(text, score, details)
+            score, details = self._analyze_chain_description(text, score, details)
+            score, details = self._analyze_vip_semantic_fingerprints(text, score, details)
+            score, details = self._analyze_vip_mechanical_patterns(text, score, details)
+            score, details = self._analyze_vip_data_authenticity(text, score, details)
 
         final_score = min(100, max(0, score))
         details['overall_score'] = final_score
@@ -399,28 +432,26 @@ class ChineseDetector(BaseDetector):
         ai_peak_ratio = ai_peak_count / len(lengths)
 
         metric_score = 0
-        # 短文本（<5句）降低敏感度
         if len(lengths) >= 5:
             if ai_peak_ratio > 0.7:
-                metric_score += 15
+                metric_score += 4
             elif ai_peak_ratio > 0.55:
-                metric_score += 8
+                metric_score += 2
 
             if cv < 0.25:
-                metric_score += 12
+                metric_score += 3
             elif cv < 0.35:
-                metric_score += 6
+                metric_score += 1
         else:
-            # 短文本需要更严格的条件
             if ai_peak_ratio > 0.85:
-                metric_score += 8
+                metric_score += 2
             elif ai_peak_ratio > 0.75:
-                metric_score += 4
+                metric_score += 1
 
             if cv < 0.18:
-                metric_score += 6
+                metric_score += 2
             elif cv < 0.28:
-                metric_score += 3
+                metric_score += 1
 
         details['metrics']['sentence_length_distribution'] = {
             'avg_length': round(avg_len, 1),
@@ -428,6 +459,86 @@ class ChineseDetector(BaseDetector):
             'ai_peak_ratio': round(ai_peak_ratio, 2),
             'score': metric_score,
             'details': f'句长均值{avg_len:.1f}，CV={cv:.3f}，15-25字占比{ai_peak_ratio*100:.0f}%'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_ai_verb_density(self, text: str, score: int,
+                                 details: Dict) -> Tuple[int, Dict]:
+        chinese_chars = re.sub(r'[^\u4e00-\u9fa5]', '', text)
+        if len(chinese_chars) < 50:
+            return score, details
+
+        verb_types = 0
+        verb_count = 0
+        found_verbs = []
+        for verb in self.AI_HIGH_FREQ_VERBS:
+            count = text.count(verb)
+            if count > 0:
+                verb_types += 1
+                verb_count += count
+                found_verbs.append(f'{verb}({count})')
+
+        noun_types = 0
+        noun_count = 0
+        found_nouns = []
+        for noun in self.AI_HIGH_FREQ_NOUNS:
+            count = text.count(noun)
+            if count > 0:
+                noun_types += 1
+                noun_count += count
+                found_nouns.append(f'{noun}({count})')
+
+        total_ai_words = verb_count + noun_count
+        total_types = verb_types + noun_types
+        density = total_ai_words / (len(chinese_chars) / 100)
+
+        metric_score = 0
+        if total_types >= 5:
+            metric_score = 15
+        elif total_types >= 4:
+            metric_score = 10
+        elif total_types >= 3:
+            metric_score = 6
+
+        if density > 5:
+            metric_score += 6
+        elif density > 3:
+            metric_score += 3
+
+        metric_score = min(20, metric_score)
+
+        details['metrics']['ai_verb_density'] = {
+            'verb_count': verb_count,
+            'noun_count': noun_count,
+            'total_types': total_types,
+            'density': round(density, 2),
+            'score': metric_score,
+            'details': f'AI高频词密度{density:.1f}/100字，动词[{", ".join(found_verbs[:5])}]，名词[{", ".join(found_nouns[:5])}]'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_comma_density(self, text: str, score: int,
+                               details: Dict) -> Tuple[int, Dict]:
+        chinese_chars = re.sub(r'[^\u4e00-\u9fa5]', '', text)
+        if len(chinese_chars) < 50:
+            return score, details
+
+        comma_count = text.count('，') + text.count(',')
+        density = comma_count / (len(chinese_chars) / 100)
+
+        metric_score = 0
+        if density > 6.0:
+            metric_score = 5
+        elif density > 5.0:
+            metric_score = 3
+
+        details['metrics']['comma_density'] = {
+            'comma_count': comma_count,
+            'density': round(density, 2),
+            'score': metric_score,
+            'details': f'逗号密度{density:.1f}/100字'
         }
 
         return score + metric_score, details
@@ -504,14 +615,14 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if ai_zone_ratio > 0.85:
-            metric_score += 15
-        elif ai_zone_ratio > 0.7:
             metric_score += 8
+        elif ai_zone_ratio > 0.7:
+            metric_score += 4
 
         if std_density < 0.05:
-            metric_score += 10
-        elif std_density < 0.08:
             metric_score += 5
+        elif std_density < 0.08:
+            metric_score += 2
 
         details['metrics']['info_density_distribution'] = {
             'avg_density': round(avg_density, 2),
@@ -551,22 +662,15 @@ class ChineseDetector(BaseDetector):
                 uniformity_score = 1 - gap_cv
 
         metric_score = 0
-        # 短文本（<100字）降低密度敏感度
-        if len(text) >= 100:
-            if density_per_1000 > 12:
-                metric_score += 12
-            elif density_per_1000 > 8:
-                metric_score += 6
-        else:
-            if density_per_1000 > 20:
-                metric_score += 8
-            elif density_per_1000 > 15:
-                metric_score += 4
+        if density_per_1000 > 15:
+            metric_score += 6
+        elif density_per_1000 > 10:
+            metric_score += 3
 
-        if uniformity_score > 0.85:
-            metric_score += 10
-        elif uniformity_score > 0.7:
+        if uniformity_score > 0.9:
             metric_score += 5
+        elif uniformity_score > 0.8:
+            metric_score += 2
 
         details['metrics']['transition_word_distribution'] = {
             'count': transition_count,
@@ -590,32 +694,30 @@ class ChineseDetector(BaseDetector):
         variance_ratio = std_dev / avg_len if avg_len > 0 else 0
 
         metric_score = 0
-        # 短文本（<5句）降低敏感度
         if len(sentences) >= 5:
             if avg_len < 30:
                 if variance_ratio < 0.18:
-                    metric_score = 15
+                    metric_score = 8
                 elif variance_ratio < 0.25:
-                    metric_score = 10
-                elif variance_ratio < 0.35:
                     metric_score = 5
+                elif variance_ratio < 0.35:
+                    metric_score = 2
             else:
                 if variance_ratio < 0.25:
-                    metric_score = 12
+                    metric_score = 6
                 elif variance_ratio < 0.35:
-                    metric_score = 7
+                    metric_score = 3
         else:
-            # 短文本需要更严格的条件
             if avg_len < 30:
                 if variance_ratio < 0.15:
-                    metric_score = 10
+                    metric_score = 5
                 elif variance_ratio < 0.20:
-                    metric_score = 6
+                    metric_score = 3
             else:
                 if variance_ratio < 0.20:
-                    metric_score = 8
-                elif variance_ratio < 0.30:
                     metric_score = 4
+                elif variance_ratio < 0.30:
+                    metric_score = 2
 
         details['metrics']['sentence_uniformity'] = {
             'avg_length': round(avg_len, 1),
@@ -650,18 +752,29 @@ class ChineseDetector(BaseDetector):
                                   details: Dict) -> Tuple[int, Dict]:
         phrase_count = self.count_word_occurrences(text, self.ABSTRACT_PHRASES)
 
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fa5]', text))
+        density = phrase_count / (chinese_chars / 100) if chinese_chars > 50 else 0
+
         metric_score = 0
         if phrase_count > 5:
-            metric_score = 12
+            metric_score = 15
         elif phrase_count > 3:
-            metric_score = 8
+            metric_score = 10
         elif phrase_count > 1:
-            metric_score = 4
+            metric_score = 5
+
+        if density > 3:
+            metric_score += 5
+        elif density > 2:
+            metric_score += 3
+
+        metric_score = min(20, metric_score)
 
         details['metrics']['abstract_language'] = {
             'count': phrase_count,
+            'density': round(density, 2),
             'score': metric_score,
-            'details': f'抽象短语数量 {phrase_count}'
+            'details': f'抽象短语数量 {phrase_count}，密度{density:.1f}/100字'
         }
 
         return score + metric_score, details
@@ -704,22 +817,14 @@ class ChineseDetector(BaseDetector):
         template_count = self.detect_repeated_patterns(text, self.TEMPLATE_PATTERNS)
 
         metric_score = 0
-        # 短文本（<100字）降低敏感度
-        text_len = len(text)
-        if text_len >= 100:
-            if template_count >= 3:
-                metric_score = 15
-            elif template_count >= 2:
-                metric_score = 10
-            elif template_count >= 1:
-                metric_score = 5
-        else:
-            if template_count >= 4:
-                metric_score = 10
-            elif template_count >= 2:
-                metric_score = 6
-            elif template_count >= 1:
-                metric_score = 3
+        if template_count >= 4:
+            metric_score = 18
+        elif template_count >= 3:
+            metric_score = 12
+        elif template_count >= 2:
+            metric_score = 8
+        elif template_count >= 1:
+            metric_score = 4
 
         details['metrics']['templates'] = {
             'count': template_count,
@@ -754,17 +859,16 @@ class ChineseDetector(BaseDetector):
         cv = std_count / avg_count if avg_count > 0 else 0
 
         metric_score = 0
-        # 短文本（<100字）降低敏感度
         if len(text) >= 100:
             if cv < 0.6:
-                metric_score = 10
+                metric_score = 5
             elif cv < 0.8:
-                metric_score = 6
+                metric_score = 3
         else:
             if cv < 0.5:
-                metric_score = 8
-            elif cv < 0.7:
                 metric_score = 4
+            elif cv < 0.7:
+                metric_score = 2
 
         details['metrics']['word_burstiness'] = {
             'cv': round(cv, 3),
@@ -847,12 +951,10 @@ class ChineseDetector(BaseDetector):
         comma_per_sentence = total_commas / len(sentences) if len(sentences) > 0 else 0
 
         metric_score = 0
-        if comma_per_sentence > 4.0:
-            metric_score = 12
-        elif comma_per_sentence > 3.0:
-            metric_score = 8
-        elif comma_per_sentence > 2.0:
-            metric_score = 4
+        if comma_per_sentence > 5.0:
+            metric_score = 6
+        elif comma_per_sentence > 4.0:
+            metric_score = 3
 
         details['metrics']['clause_chain_density'] = {
             'value': round(comma_per_sentence, 2),
@@ -935,8 +1037,8 @@ class ChineseDetector(BaseDetector):
     def _analyze_suizhe_template(self, text: str, score: int,
                                 details: Dict) -> Tuple[int, Dict]:
         suizhe_patterns = [
-            r'随着[^，。]{2,50}的[^，。]{2,50}',
-            r'基于[^，。]{2,50}的[^，。]{2,50}',
+            r'随着[^，。]{2,30}的[^，。]{2,30}[,，][^，。]{0,10}(?:发展|进步|提升|增长|兴起)',
+            r'基于[^，。]{2,30}的[^，。]{2,30}[,，][^，。]{0,10}(?:提出|设计|构建|实现)',
         ]
 
         total_count = 0
@@ -946,11 +1048,11 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if total_count >= 3:
-            metric_score = 15
+            metric_score = 8
         elif total_count >= 2:
-            metric_score = 10
-        elif total_count >= 1:
             metric_score = 5
+        elif total_count >= 1:
+            metric_score = 2
 
         details['metrics']['suizhe_template'] = {
             'count': total_count,
@@ -992,9 +1094,9 @@ class ChineseDetector(BaseDetector):
     def _analyze_definition_pattern(self, text: str, score: int,
                                    details: Dict) -> Tuple[int, Dict]:
         patterns = [
-            r'是[\u4e00-\u9fa5]{2,20}的[\u4e00-\u9fa5]{2,20}',
             r'是指[\u4e00-\u9fa5]{2,40}的[\u4e00-\u9fa5]{2,20}',
-            r'是[\u4e00-\u9fa5]{2,20}之一',
+            r'被定义为[\u4e00-\u9fa5]{2,30}',
+            r'定义为[\u4e00-\u9fa5]{2,30}',
         ]
         seen_spans = set()
         count = 0
@@ -1007,18 +1109,18 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if count >= 4:
-            metric_score = 20
+            metric_score = 10
         elif count >= 3:
-            metric_score = 16
-        elif count >= 2:
-            metric_score = 12
-        elif count >= 1:
             metric_score = 6
+        elif count >= 2:
+            metric_score = 3
+        elif count >= 1:
+            metric_score = 1
 
         details['metrics']['definition_pattern'] = {
             'count': count,
             'score': metric_score,
-            'details': f'"是...的"定义式 {count} 处'
+            'details': f'定义式表达 {count} 处'
         }
 
         return score + metric_score, details
@@ -1034,15 +1136,13 @@ class ChineseDetector(BaseDetector):
         density = (total_dashes / chinese_chars) * 1000 if chinese_chars > 0 else 0
 
         metric_score = 0
-        if total_dashes >= 3:
-            metric_score = 12
-        elif total_dashes >= 2:
+        if total_dashes >= 4:
             metric_score = 8
-        elif total_dashes >= 1:
+        elif total_dashes >= 3:
             metric_score = 4
 
-        if density > 3.0:
-            metric_score = max(metric_score, 10)
+        if density > 5.0:
+            metric_score = max(metric_score, 6)
 
         details['metrics']['em_dash_overuse'] = {
             'count': total_dashes,
@@ -1272,17 +1372,16 @@ class ChineseDetector(BaseDetector):
             metric_score = 0
             if sentence_count >= 5:
                 if pattern_ratio > 0.75:
-                    metric_score = 12
+                    metric_score = 6
                 elif pattern_ratio > 0.6:
-                    metric_score = 7
-                elif pattern_ratio > 0.5:
                     metric_score = 3
+                elif pattern_ratio > 0.5:
+                    metric_score = 1
             else:
-                # 短文本需要更高的重复率才扣分
                 if pattern_ratio > 0.85:
-                    metric_score = 8
-                elif pattern_ratio > 0.75:
                     metric_score = 4
+                elif pattern_ratio > 0.75:
+                    metric_score = 2
 
             details['metrics']['sentence_structure_pattern'] = {
                 'dominant_ratio': round(pattern_ratio, 2),
@@ -1419,14 +1518,11 @@ class ChineseDetector(BaseDetector):
             matches = re.findall(pattern, text)
             suspicious_count += len(matches)
 
-        precise_numbers = re.findall(r'\d+\.\d{2,}', text)
-        suspicious_count += len(precise_numbers)
-
         metric_score = 0
         if suspicious_count >= 5:
-            metric_score = 20
+            metric_score = 8
         elif suspicious_count >= 3:
-            metric_score = 12
+            metric_score = 4
 
         details['metrics']['vip_data_authenticity'] = {
             'count': suspicious_count,
@@ -1449,15 +1545,15 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if total_count >= 8:
-            metric_score = 25
+            metric_score = 12
         elif total_count >= 6:
-            metric_score = 20
-        elif total_count >= 4:
-            metric_score = 15
-        elif total_count >= 2:
             metric_score = 8
+        elif total_count >= 4:
+            metric_score = 5
+        elif total_count >= 2:
+            metric_score = 3
         elif total_count >= 1:
-            metric_score = 4
+            metric_score = 1
 
         details['metrics']['technical_patterns'] = {
             'count': total_count,
@@ -1500,7 +1596,6 @@ class ChineseDetector(BaseDetector):
             r'为[\u4e00-\u9fa5]{1,15}[所的]',
             r'予以[\u4e00-\u9fa5]{1,10}',
             r'得以[\u4e00-\u9fa5]{1,10}',
-            r'可[\u4e00-\u9fa5]{1,10}的',
         ]
 
         passive_count = 0
@@ -1512,13 +1607,9 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if passive_ratio > 0.5:
-            metric_score = 20
+            metric_score = 4
         elif passive_ratio > 0.35:
-            metric_score = 15
-        elif passive_ratio > 0.2:
-            metric_score = 10
-        elif passive_ratio > 0.1:
-            metric_score = 5
+            metric_score = 2
 
         details['metrics']['passive_voice_density'] = {
             'count': passive_count,
@@ -1536,24 +1627,20 @@ class ChineseDetector(BaseDetector):
 
         complex_count = 0
         for sent in sentences:
-            # 长句 (>60字符)
-            if len(sent) > 60:
+            if len(sent) > 80:
                 comma_count = sent.count('，') + sent.count(',')
-                # 复杂长句：超过60字符且逗号数>=3
-                if comma_count >= 3:
+                if comma_count >= 4:
                     complex_count += 1
 
         complex_ratio = complex_count / len(sentences) if len(sentences) > 0 else 0
 
         metric_score = 0
         if complex_ratio > 0.6:
-            metric_score = 20
+            metric_score = 8
         elif complex_ratio > 0.4:
-            metric_score = 15
-        elif complex_ratio > 0.25:
-            metric_score = 10
-        elif complex_ratio > 0.15:
             metric_score = 5
+        elif complex_ratio > 0.25:
+            metric_score = 3
 
         details['metrics']['sentence_complexity'] = {
             'complex_count': complex_count,
