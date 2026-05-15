@@ -381,6 +381,7 @@ class ChineseDetector(BaseDetector):
         score, details = self._analyze_ai_completion_pattern(text, score, details)
         score, details = self._analyze_ai_formal_connectives(text, score, details)
         score, details = self._analyze_ai_abstract_suffix(text, score, details)
+        score, details = self._analyze_ai_causal_chain(text, score, details)
 
         if len(sentences) >= 2:
             score, details = self._analyze_sentence_length_distribution(sentences, score, details)
@@ -1310,15 +1311,15 @@ class ChineseDetector(BaseDetector):
 
         metric_score = 0
         if total_count >= 6:
-            metric_score = 18
+            metric_score = 12
         elif total_count >= 4:
-            metric_score = 14
+            metric_score = 8
         elif total_count >= 3:
-            metric_score = 10
+            metric_score = 5
         elif total_count >= 2:
-            metric_score = 6
-        elif total_count >= 1:
             metric_score = 3
+        elif total_count >= 1:
+            metric_score = 1
 
         details['metrics']['purpose_clauses'] = {
             'count': total_count,
@@ -1864,6 +1865,39 @@ class ChineseDetector(BaseDetector):
             'density': round(density, 1),
             'score': metric_score,
             'details': f'AI抽象后缀 {total_count} 处，密度{density:.1f}/千字 [{", ".join(found)}]'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_ai_causal_chain(self, text: str, score: int,
+                                  details: Dict) -> Tuple[int, Dict]:
+        patterns = [
+            (r'通过[^，。]{2,20}(实现|完成|达到|提升|增强|优化|解决|获取|提取|构建|训练|学习|融合|整合)', '通过X实现Y'),
+            (r'[^，。]{2,6}与[^，。]{2,6}的[^，。]{2,8}', 'X与Y的Z'),
+        ]
+
+        total_count = 0
+        found = []
+        for pattern, name in patterns:
+            matches = re.findall(pattern, text)
+            if matches:
+                total_count += len(matches)
+                found.append(f'{name}({len(matches)})')
+
+        metric_score = 0
+        if total_count >= 4:
+            metric_score = 8
+        elif total_count >= 3:
+            metric_score = 5
+        elif total_count >= 2:
+            metric_score = 3
+        elif total_count >= 1:
+            metric_score = 1
+
+        details['metrics']['ai_causal_chain'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'AI因果链句式 {total_count} 处 [{", ".join(found[:5])}]'
         }
 
         return score + metric_score, details
