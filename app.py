@@ -809,22 +809,29 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 
 {extra_tone_en}
 
-【Core problems with AI text and how to fix them】:
+【Core principle: Expand, don't compress】
+AI text is "over-compressed" — it omits connecting words, auxiliaries, and transitions that humans naturally use.
+Human writing adds "to", "will", "by means of", "after completing", "this allows", "while" to make sentences flow.
+So your direction is: expand AI's compressed expressions, not compress them further.
+
+【How to fix AI text】:
 
 1. 【Most important】Passive → Active, "provides X with Y" → "X can/will output Y"
    - "is repeatedly stacked for deep feature mining" → "is stacked multiple times to mine deep features"
    - "provides the detection head with compact high-quality features" → "the detection head can output compact high-quality features"
    - "these feature maps are received by the detection head" → "the detection head receives these feature maps"
-   - "is widely used in" → "is widely used in" (keep if already natural)
-   Rule: change any "is X-ed" or "provides X with Y" structure into active voice
+   - "gives the detection head output" → "the detection head can output"
+   Rule: change any "is X-ed", "provides X with Y", "gives X Y" structure into active voice
 
-2. Add connecting words for better flow (this is the most obvious feature of human writing)
-   - "leverages X to capture Y" → "uses X to capture Y" (add "to")
+2. 【Key】Add connecting words to expand sentences (this is the most obvious difference between human and AI writing)
+   AI writing → Human writing:
+   - "uses X to capture Y" → "uses the X that Y has to capture Z" (add "that X has" "to")
+   - "maintains spatial context through pooling" → "maintains the spatial context by means of pooling aggregation" (add "by means of")
    - "after completing X, realigns with Y" → "after completing X, it will realign with Y" (add "it will")
-   - "implements dynamic calibration on X, filters out Y" → "dynamically calibrates X, and filters Y" (add "and")
-   - "circumvents information collapse in X" → "this can prevent information collapse during X" (add "this can""during")
-   - "maintains spatial context" → "maintains the spatial context" (add "the")
-   Rule: add "to""will""and""this can""during""while" around verbs for natural, connected flow
+   - "dynamically calibrates X, filters Y" → "will dynamically calibrate X, and filter Y" (add "will" "and")
+   - "prevents information collapse during X" → "this can prevent information collapse during the X process" (add "this can" "the process")
+   - "gives X output Y" → "while X can output Y" (add "while" "can")
+   Rule: add "to", "will", "by means of", "this can", "while", "after...ing", "and" around verbs for natural, connected flow
 
 3. Formal word replacement: formal function words → everyday verbs
    - "leverages"→"uses"; "implements"→delete or "performs"; "filters out"→"filters"; "circumvents"→"prevents/avoids"
@@ -860,22 +867,29 @@ Output ONLY the edited text, nothing else.
 
 {extra_tone_zh}
 
-【AI文本的核心问题和改法】：
+【核心理念：展开而非压缩】
+AI文本的问题是"过度压缩"——把该有的衔接词、助词、过渡语都省掉了，读起来像机器。
+人类写作会加"来""会""的方式""在...之后""这样能够""同时"等词让句子连贯。
+所以你的改写方向是：展开AI压缩的表达，而不是继续压缩。
+
+【具体改法】：
 
 1. 【最重要】被动→主动，"为X做Y"→"X可以/会做Y"
    - "被反复堆叠用于深层特征挖掘" → "进行多次堆叠，以对深层特征进行挖掘"
    - "为检测头输出紧致的高质量特征" → "检测头可以输出紧致的高质量特征"
    - "这些特征图被检测头接收后" → "检测头接收到这些特征图后"
-   - "被广泛应用于" → "广泛用于"
-   规律：凡是"被""为X做Y"的结构，都改成主动语态
+   - "给检测头输出" → "检测头可以输出"
+   规律：凡是"被""为X做Y""给X做Y"的结构，都改成主动语态
 
-2. 加衔接词让句子更连贯（这是人类写作最明显的特征）
-   - "借助X捕获Y" → "利用X来捕捉Y"（加"来"）
+2. 【关键】加衔接词展开句子（这是区分人和AI最明显的特征）
+   AI写法 → 人类写法：
+   - "用X捕捉Y" → "利用X所具有的...来捕捉Y"（加"所具有的""来"）
+   - "用池化聚合维持" → "则通过池化聚合的方式对...进行维持"（加"则""的方式""对...进行"）
    - "完成X后，与Y重新对齐合并" → "在完成X之后，会和Y进行重新对齐和合并"（加"在""之后""会""和"）
-   - "对X实施动态校准，滤除Y" → "会动态校准X，并过滤Y"（加"会""并"）
-   - "规避X中的信息崩塌退化" → "这样能够防止在X过程中信息发生崩塌退化"（加"这样能够""过程中""发生"）
-   - "维系空间上下文" → "对空间上下文进行维持"（加"对""进行"）
-   规律：在动词前后加"来""会""的方式""对...进行""这样能够""同时"，让句子读起来更自然连贯
+   - "对X动态校准，过滤Y" → "会动态校准X，并过滤Y"（加"会""并"）
+   - "防止X时信息发生崩塌退化" → "这样能够防止在X过程中信息发生崩塌退化"（加"这样能够""过程中"）
+   - "给X输出Y" → "同时X可以输出Y"（加"同时""可以"）
+   规律：在动词前后加"来""会""的方式""对...进行""这样能够""同时""在...之后""则"，让句子读起来更连贯
 
 3. 功能词替换：书面功能词→日常动词
    - "借助"→"利用"；"实施"→删掉或改"进行"；"滤除"→"过滤"；"规避"→"防止/避免"
