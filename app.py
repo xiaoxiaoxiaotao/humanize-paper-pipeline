@@ -895,12 +895,15 @@ Output ONLY the edited text, nothing else.
                 return None, f"API认证失败: API Key 无效或已过期，请检查。详情: {str(e)}"
         return None, f"API调用失败，已重试 {max_retries} 次。末次错误: {str(last_exception)}"
 
+    TARGET_THRESHOLD = 25
+    round_results = []  # 记录每轮的分数和文本
+    
     try:
         for round_num in range(1, MAX_ROUNDS + 1):
             if round_num == 1:
                 st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: 初始改写...")
             else:
-                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: 当前总分 {ai_score}/100，目标 < 35")
+                st.info(f"Pipeline Round {round_num}/{MAX_ROUNDS}: 当前总分 {ai_score}/100，目标 < {TARGET_THRESHOLD}")
 
             def make_round_call():
                 return client.chat.completions.create(
@@ -919,6 +922,7 @@ Output ONLY the edited text, nothing else.
             messages.append({"role": "assistant", "content": revised})
 
             ai_score, ai_details = calculate_ai_rate(revised, lang)
+            round_results.append({"score": ai_score, "text": revised})  # 记录本轮结果
             st.write(f"🔬 第{round_num}轮评估的AI近似指纹分数: {ai_score}/100")
 
             if ai_details:
@@ -953,8 +957,8 @@ Output ONLY the edited text, nothing else.
             current_quality = calculate_quality_metrics(revised, lang)
             quality_warning = check_quality_degradation(original_quality, current_quality)
 
-            if ai_score < 35:
-                st.success(f"✅ AI总分 {ai_score} < 35，达标！共迭代 {round_num} 轮。")
+            if ai_score < TARGET_THRESHOLD:
+                st.success(f"✅ AI总分 {ai_score} < {TARGET_THRESHOLD}，达标！共迭代 {round_num} 轮。")
                 break
 
             if quality_warning:
@@ -966,7 +970,12 @@ Output ONLY the edited text, nothing else.
                     feedback_str += "\n\n" + get_quality_preservation_prompt(quality_warning, is_en)
                 messages.append({"role": "user", "content": feedback_str})
             else:
-                st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，总分 {ai_score} 仍 ≥ 35。建议手动微调。")
+                # 第8轮仍未达标，选择分数最低的结果
+                best_result = min(round_results, key=lambda x: x['score'])
+                st.warning(f"⚠️ 已进行 {MAX_ROUNDS} 轮迭代，总分 {ai_score} 仍 ≥ {TARGET_THRESHOLD}。")
+                st.info(f"📊 选择分数最低的结果: {best_result['score']}/100")
+                revised = best_result['text']
+                ai_score = best_result['score']
 
         if lang == "Chinese":
             revised = format_clean_chinese(revised)
