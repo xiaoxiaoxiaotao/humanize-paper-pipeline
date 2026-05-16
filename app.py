@@ -805,32 +805,39 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     extra_tone_en = tone_rules_en.get(tone, tone_rules_en["学术书面 (Formal Academic)"])
     extra_tone_zh = tone_rules_zh.get(tone, tone_rules_zh["学术书面 (Formal Academic)"])
 
-    prompt_en = f"""You are an academic text editor. Goal: make AI-generated academic text read more like a human wrote it — plain, natural, not over-packed.
+    prompt_en = f"""You are an academic text editor. Goal: make AI-generated academic text read more like a human wrote it — plain, natural, with good flow.
 
 {extra_tone_en}
 
-【Core problems with AI text】:
-AI academic writing has typical patterns you need to fix:
+【Core problems with AI text and how to fix them】:
 
-1. Compressed passive: AI packs information into tight structures
+1. 【Most important】Passive → Active, "provides X with Y" → "X can/will output Y"
    - "is repeatedly stacked for deep feature mining" → "is stacked multiple times to mine deep features"
    - "provides the detection head with compact high-quality features" → "the detection head can output compact high-quality features"
-   Rule: expand passive into active, change "for"/"provides X with" into "to"/"X can output"
+   - "these feature maps are received by the detection head" → "the detection head receives these feature maps"
+   - "is widely used in" → "is widely used in" (keep if already natural)
+   Rule: change any "is X-ed" or "provides X with Y" structure into active voice
 
-2. Formal function words: AI uses "leverages", "implements", "filters out", "circumvents"
-   - "leverages the representational capacity of X to capture Y" → "uses the representational capacity of X to capture Y"
-   - "implements dynamic calibration on feature channels" → "dynamically calibrates feature channels"
-   - "filters out redundant background interference" → "filters redundant background interference"
-   - "circumvents information collapse in low-dimensional attention" → "prevents information collapse during low-dimensional attention"
-   Rule: formal words → everyday verbs, add "to"/"during"/"can" for natural flow
+2. Add connecting words for better flow (this is the most obvious feature of human writing)
+   - "leverages X to capture Y" → "uses X to capture Y" (add "to")
+   - "after completing X, realigns with Y" → "after completing X, it will realign with Y" (add "it will")
+   - "implements dynamic calibration on X, filters out Y" → "dynamically calibrates X, and filters Y" (add "and")
+   - "circumvents information collapse in X" → "this can prevent information collapse during X" (add "this can""during")
+   - "maintains spatial context" → "maintains the spatial context" (add "the")
+   Rule: add "to""will""and""this can""during""while" around verbs for natural, connected flow
 
-3. Compressed phrases: AI packs multiple modifiers together
-   - "compact, robust high-quality feature representations" → "compact and robust high-quality feature representations"
-   Rule: commas between adjectives → "and", expand compressed verbs
+3. Formal word replacement: formal function words → everyday verbs
+   - "leverages"→"uses"; "implements"→delete or "performs"; "filters out"→"filters"; "circumvents"→"prevents/avoids"
+   - "captures"→"catches/extracts"; "corresponds to"→"represents"; "precisely"→"accurately"
+   - "the X"→"X" (remove unnecessary "the" when redundant)
 
-4. Empty adverbs: delete "significantly", "effectively", "innovatively", "successfully"
+4. Phrase expansion: AI compression → human expansion
+   - "compact, robust high-quality" → "compact and robust high-quality" (comma → "and")
+   - "typically relatively" → "generally relatively"
 
-5. AI connectors:
+5. Empty adverbs: delete "significantly", "effectively", "innovatively", "successfully"
+
+6. AI connectors:
    - "thereby" → "so"; "not only...but also" → "both...and"
    - "implies" → "shows"; "demonstrates" → "shows"
 
@@ -844,38 +851,44 @@ AI academic writing has typical patterns you need to fix:
   → "The detection head receives multi-scale feature maps output by the Neck network to complete the prediction of bounding box coordinates"
 
 - "The high-frequency branch leverages the representational capacity of local windows to capture edge details of targets such as safety helmets, while the low-frequency branch maintains the spatial context of human torsos and construction environments through pooling aggregation"
-  → "The high-frequency branch uses the representational capacity of local windows to capture edge details of targets like safety helmets, and the low-frequency branch maintains the spatial context of human torsos and construction environments through pooling aggregation"
+  → "The high-frequency branch uses the representational capacity that local windows have to capture edge details of targets like safety helmets, and the low-frequency branch maintains the spatial context of human torsos and construction environments through pooling aggregation"
 
 Output ONLY the edited text, nothing else.
 """
 
-    prompt_zh = f"""你是学术文本编辑。目标：让AI生成的学术文本读起来更像人写的——平实、自然、不堆砌。
+    prompt_zh = f"""你是学术文本编辑。目标：让AI生成的学术文本读起来更像人写的——平实、自然、有衔接。
 
 {extra_tone_zh}
 
-【AI文本的核心问题】：
-AI写学术文本有几种典型毛病，你需要在改写时逐一处理：
+【AI文本的核心问题和改法】：
 
-1. 被动压缩式：AI喜欢把信息压缩进一个紧凑的结构
+1. 【最重要】被动→主动，"为X做Y"→"X可以/会做Y"
    - "被反复堆叠用于深层特征挖掘" → "进行多次堆叠，以对深层特征进行挖掘"
    - "为检测头输出紧致的高质量特征" → "检测头可以输出紧致的高质量特征"
-   规律：把被动结构展开成主动，把"用于""为"改成"以对""可以"
+   - "这些特征图被检测头接收后" → "检测头接收到这些特征图后"
+   - "被广泛应用于" → "广泛用于"
+   规律：凡是"被""为X做Y"的结构，都改成主动语态
 
-2. 功能词堆砌：AI喜欢用"借助""实施""滤除""规避"这类书面功能词
-   - "借助X的表征能力捕获Y" → "利用X的表征能力来捕捉Y"
-   - "对X实施动态校准" → "会动态校准X"
-   - "滤除X的干扰" → "过滤X中存在的干扰"
-   - "规避X中的信息崩塌退化" → "防止在X过程中信息发生崩塌退化"
-   规律：书面功能词→日常动词，加"来""会""中存在的""过程中""发生"让句子更自然
+2. 加衔接词让句子更连贯（这是人类写作最明显的特征）
+   - "借助X捕获Y" → "利用X来捕捉Y"（加"来"）
+   - "完成X后，与Y重新对齐合并" → "在完成X之后，会和Y进行重新对齐和合并"（加"在""之后""会""和"）
+   - "对X实施动态校准，滤除Y" → "会动态校准X，并过滤Y"（加"会""并"）
+   - "规避X中的信息崩塌退化" → "这样能够防止在X过程中信息发生崩塌退化"（加"这样能够""过程中""发生"）
+   - "维系空间上下文" → "对空间上下文进行维持"（加"对""进行"）
+   规律：在动词前后加"来""会""的方式""对...进行""这样能够""同时"，让句子读起来更自然连贯
 
-3. 短语压缩：AI喜欢把多个修饰词压缩在一起
-   - "紧致、鲁棒的高质量特征表征" → "紧凑和鲁棒的高质量特征表征"
-   - "维系空间上下文" → "对空间上下文进行维持"
-   规律：顿号→"和"，压缩动词→"对X进行Y"展开
+3. 功能词替换：书面功能词→日常动词
+   - "借助"→"利用"；"实施"→删掉或改"进行"；"滤除"→"过滤"；"规避"→"防止/避免"
+   - "捕获"→"捕捉/获取"；"对应"→"代表"；"精准"→"精确"
+   - "该X"→"X"（删掉多余的"该"）
 
-4. 空洞副词：删掉"显著地""有效地""创新性地""成功地"等
+4. 短语展开：AI压缩→人类展开
+   - "紧致、鲁棒的高质量" → "紧凑和鲁棒的高质量"（顿号→"和"）
+   - "通常较为" → "一般比较"
 
-5. AI连接词：
+5. 空洞副词：删掉"显著地""有效地""创新性地""成功地"等
+
+6. AI连接词：
    - "使得"→"让"；"，且"→"，并"；"不仅...而且"→"既...也"
    - "意味着"→"说明"；"体现出"→"体现"；"相较于"→"比"
 

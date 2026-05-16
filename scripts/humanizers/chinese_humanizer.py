@@ -35,18 +35,13 @@ class ChineseHumanizer(BaseHumanizer):
         '从总体来看': '总体看',
         '从总体而言': '总体看',
         '不可否认': '确实',
-        '基于': '用',
         '旨在': '为了',
         '本文旨在': '本文',
         '本文将重点研究': '本文研究',
         '本文拟': '本文',
-        '本文首先': '本文先',
-        '本文其次': '本文又',
-        '本文最后': '本文还',
 
         '发挥着重要作用': '有助于',
         '发挥着关键作用': '关键',
-        '发挥着不可忽视的作用': '有作用',
         '具有重要意义': '重要',
         '具有重要价值': '有价值',
         '具有重要的现实意义': '有实际意义',
@@ -54,10 +49,7 @@ class ChineseHumanizer(BaseHumanizer):
         '具有重大意义': '重要',
         '具有深远意义': '影响深远',
         '具有广阔前景': '前景好',
-        '具有很大的价值': '有价值',
-        '具有重要的作用': '有作用',
         '具有显著的优势': '有优势',
-        '具有明显的特征': '特征明显',
         '不可或缺': '必要',
         '至关重要': '关键',
         '举足轻重': '重要',
@@ -66,12 +58,6 @@ class ChineseHumanizer(BaseHumanizer):
         '扮演了': '是',
         '充当着': '是',
         '充当了': '是',
-        '首要步骤': '第一步',
-        '首要任务': '核心任务',
-        '首要目标': '核心目标',
-        '直接决定了': '影响',
-        '直接决定': '影响',
-        '核心痛点': '主要问题',
 
         '极大地': '',
         '显著地': '',
@@ -125,14 +111,6 @@ class ChineseHumanizer(BaseHumanizer):
         '卓有成效': '有效',
         '立竿见影': '立即见效',
 
-        '强大且高效': '高效',
-        '高效且': '高效',
-        '有效且': '有效',
-        '富含语义': '语义丰富',
-        '高维的': '高维',
-        '送入': '输入',
-        '输入到': '传入',
-
         '被广泛应用于': '广泛用于',
         '被广泛使用于': '广泛用于',
         '被广泛采用': '广泛采用',
@@ -149,77 +127,25 @@ class ChineseHumanizer(BaseHumanizer):
         '为了可以': '为了',
         '基于以下原因': '因为',
         '基于上述原因': '因此',
-        '在当前背景下': '当前',
-        '在现有条件下': '现有条件下',
-
-        '通过对...的分析': '分析',
-        '通过对...的研究': '研究',
-        '对...进行分析': '分析',
-        '对...进行研究': '研究',
-        '从...角度': '从...看',
-        '从...方面': '从...看',
-        '在...方面': '在...上',
-        '在...领域': '在...中',
-        '针对...问题': '对...问题',
-        '关于...的研究': '...研究',
-        '有关...的': '...的',
 
         '涉及到': '涉及',
         '关联到': '关联',
-        '依赖于': '依赖',
         '归因于': '因为',
-        '归结为': '归为',
-
-        '逐级抽象': '逐层抽象',
-        '制约着': '限制',
-        '在很大程度上影响着': '影响',
-        '在很大程度上': '很大程度上',
-        '可以看作': '即',
-        '可以视为': '即',
-        '逐步生成': '生成',
-        '逐步构建': '构建',
-        '逐步形成': '形成',
-        '高维且': '高维',
-        '语义信息丰富的': '语义丰富',
-        '语义信息丰富': '语义丰富',
-
-        '计算量以及': '计算量和',
-        '加权和': '加权求和',
 
         '基于此': '因此',
-        '实现了良好': '做到',
         '取得了良好的效果': '有效果',
         '取得了显著的效果': '效果好',
         '核心思想': '核心思路',
         '设计理念': '设计思路',
-        '吸引了大量关注': '受关注',
-        '引导了发展方向': '引导方向',
         '实现了超越': '超过',
         '带来了性能上的提升': '提升性能',
         '带来了提升': '提升',
-        '不断引入': '引入',
-        '逐步弥合': '弥合',
         '成为首选方案': '成为首选',
-        '首选方案': '首选',
         '颠覆性的': '颠覆性',
-        '大量关注': '关注',
-        '发展方向': '方向',
-        '基础框架': '框架',
-        '轻量计算量': '轻量计算',
         '轻量级': '轻量',
-        '富含': '含',
-
-        '实现了': '做到',
-        '增强了': '加强了',
 
         '迫切需求': '需求',
         '持续演进': '发展',
-        '研究进展': '进展',
-        '代表性成果': '成果',
-        '各有优势与不足': '各有优缺点',
-        '驱动了': '推动了',
-        '具体挑战包括': '挑战有',
-        '主要包括': '包括',
         '有效支持': '支持',
         '有效保障': '保障',
         '显著提升': '提高',
@@ -228,133 +154,44 @@ class ChineseHumanizer(BaseHumanizer):
         '进而提升': '进而提高',
         '从而实现': '从而做到',
         '能够实现': '能做到',
-        '进一步分析': '深入分析',
-        '进一步研究': '深入研究',
-        '进一步探讨': '深入探讨',
-        '进一步优化': '继续优化',
-        '进一步改进': '继续改进',
         '以满足': '来满足',
-        '技术范式': '技术路线',
 
         '奠定了理论基础': '给出了理论依据',
         '奠定了基础': '给出了基础',
-        '提供了技术基础': '有了技术支撑',
-        '提供了技术支撑': '有了技术依据',
-        '提供了算法支持': '有了算法依据',
         '被列为': '属于',
         '能有效防范': '能防范',
         '能有效预防': '能预防',
         '能有效解决': '能解决',
         '规范佩戴': '正确佩戴',
-        '关键防线': '重要防线',
         '智能化升级': '智能化改造',
-        '理论实践兼备': '理论和实践兼顾',
-        '快速识别': '识别',
-        '触发预警': '发出预警',
-        '快速进步': '进步',
         '被广泛应用': '广泛应用',
         '自动化检测': '自动检测',
         '安全管控水平': '安全管理水平',
         '安全管控': '安全管理',
         '实际应用需求': '实际需求',
         '应用需求': '需求',
-        '具体场景': '场景',
-
-        '提升了': '提高了',
-        '降低了': '减少了',
-        '解决了': '处理了',
-        '避免了': '防止了',
-        '促进了': '推动了',
-        '强化了': '加强了',
-        '确保了': '保证了',
-        '证明了': '说明',
-        '展示了': '显示',
-        '验证了': '确认',
 
         '，且': '，并',
         '不仅': '既',
         '而且': '也',
         '使得': '让',
-        '得以': '能够',
-        '为.*提供': '给.*提供',
         '均': '都',
-        '具体而言': '具体说',
-        '换言之': '即',
 
         '提升至': '提高到',
         '降低至': '减少到',
         '增加至': '增加到',
         '减少至': '减到',
-        '提升幅度': '提高幅度',
-        '其性能': '性能',
-        '其效果': '效果',
-        '其精度': '精度',
-        '其能力': '能力',
-        '其表现': '表现',
-        '其特征': '特征',
-        '其优势': '优势',
-        '其结果': '结果',
-        '为.*提供.*基础': '给.*提供.*基础',
-        '为.*提供.*支撑': '给.*提供.*支撑',
-        '为.*提供.*依据': '给.*提供.*依据',
-        '为.*提供.*保障': '给.*提供.*保障',
-        '进一步完成了': '还完成了',
-        '进一步验证': '继续验证',
-        '进一步证明': '还说明',
-        '进一步表明': '还表明',
-        '进一步展示': '还展示',
-        '进一步确认': '还确认',
-
         '意味着': '说明',
         '体现出': '体现',
-        '从.*来看': '从.*看',
-        '从.*角度': '从.*方面',
-        '相比原始': '和原始',
-        '相比.*而言': '比.*来说',
         '相较于': '比',
-
-        '采用.*设计': '用了.*设计',
-        '分别对应': '分别对应',
-        '最终整合形成': '最终整合为',
-        '最终整合': '最终合并',
-        '构成特征金字塔': '组成特征金字塔',
-        '接收.*完成': '接收.*完成',
-        '在.*前提下': '在.*条件下',
         '拆分处理': '分开处理',
-        '优化冲突': '冲突',
         '各自独立': '互不影响',
-
-        '这是.*的常见划分': '这是.*的常见划分',
-        '试图.*同时': '试图.*同时',
-        '容易.*可能': '容易.*也可能',
         '精准且高效': '精确且高效',
         '极低计算开销': '极少的计算开销',
-        '大幅减少': '大幅减少',
-        '频率分离解耦': '按频率分开处理',
-        '通道维度拼接融合': '在通道维度拼接融合',
-        '通道维度拼接': '在通道维度拼接',
-        '拼接融合': '拼接融合',
-        '结合了.*和.*': '结合了.*和.*',
-        '对应图像': '代表图像',
-        '试图用': '试图用',
-        '捕获.*信息': '获取.*信息',
-        '将.*划分': '把.*划分',
-        '划分为': '划分成',
-        '采用.*实现': '利用.*进行',
-        '以.*开销': '用.*开销',
-        '能够.*提取': '可以.*提取',
         '通常较为': '一般比较',
-
-        '被反复堆叠': '反复堆叠',
-        '借助.*的表征能力': '利用.*的表征能力',
-        '对.*实施动态校准': '对.*进行动态校准',
-        '滤除.*的干扰': '去除.*的干扰',
-        '规避.*中的': '避免.*中的',
-        '为.*输出': '给.*输出',
-        '起引导作用的': '起引导作用的',
-        '重新对齐合并': '重新对齐后合并',
-        '信息崩塌退化': '信息退化',
-        '紧致、鲁棒的高质量': '紧致且鲁棒的',
+        '划分为': '划分成',
+        '送入': '输入',
+        '输入到': '传入',
     }
 
     AI_ENUM_REPLACEMENTS = [
@@ -367,10 +204,6 @@ class ChineseHumanizer(BaseHumanizer):
         (r'第三[，,]', '其三，'),
     ]
 
-    SUIZHE_PATTERN = re.compile(r'随着([^，。的了]+?的[^，。]*)[，,]')
-    JIYU_PATTERN = re.compile(r'基于([^，。的了]+?的[^，。]*)')
-    TONGGUO_PATTERN = re.compile(r'通过([^，。]{2,20}?)(?=，|。|实现|完成|达到|提升|增强|优化|解决|获取|提取|构建|训练|学习|融合|整合|做到|提高|加强|改进|验证|证明|说明|确认)')
-
     def __init__(self):
         super().__init__(name="Chinese Humanizer")
 
@@ -381,19 +214,7 @@ class ChineseHumanizer(BaseHumanizer):
         result, new_changes = self._replace_ai_templates(result)
         changes.extend(new_changes)
 
-        result, new_changes = self._fix_suizhe_pattern(result)
-        changes.extend(new_changes)
-
-        result, new_changes = self._fix_jiyu_pattern(result)
-        changes.extend(new_changes)
-
-        result, new_changes = self._fix_tongguo_pattern(result)
-        changes.extend(new_changes)
-
         result, new_changes = self._replace_enum_words(result)
-        changes.extend(new_changes)
-
-        result, new_changes = self._replace_em_dashes(result)
         changes.extend(new_changes)
 
         result, new_changes = self._clean_extra_punctuation(result)
@@ -410,55 +231,6 @@ class ChineseHumanizer(BaseHumanizer):
                 changes.append(f"替换AI模板: {old} -> {new or '(删除)'}")
         return result, changes
 
-    def _fix_suizhe_pattern(self, text: str) -> Tuple[str, List[str]]:
-        changes = []
-        result = text
-
-        def replace_suizhe(m):
-            content = m.group(1)
-            changes.append(f"修复'随着'模板: 随着{content}， -> {content}，")
-            return f"{content}，"
-
-        result = self.SUIZHE_PATTERN.sub(replace_suizhe, result)
-        return result, changes
-
-    def _fix_jiyu_pattern(self, text: str) -> Tuple[str, List[str]]:
-        changes = []
-        result = text
-
-        def replace_jiyu(m):
-            content = m.group(1)
-            if content.endswith('的'):
-                new_content = content[:-1]
-            else:
-                new_content = content
-            changes.append(f"修复'基于'模板: 基于{content} -> 用{new_content}")
-            return f"用{new_content}"
-
-        result = self.JIYU_PATTERN.sub(replace_jiyu, result)
-        return result, changes
-
-    def _fix_tongguo_pattern(self, text: str) -> Tuple[str, List[str]]:
-        changes = []
-        result = text
-
-        def replace_tongguo(m):
-            content = m.group(1)
-            if content.endswith('的'):
-                new_content = content[:-1]
-            else:
-                new_content = content
-            verb_indicators = ['引入', '采用', '使用', '利用', '设计', '构建', '融合', '结合', '加入', '添加']
-            for vi in verb_indicators:
-                if new_content.startswith(vi):
-                    changes.append(f"修复'通过'模板: 通过{content} -> {new_content}")
-                    return new_content
-            changes.append(f"修复'通过'模板: 通过{content} -> 用{new_content}")
-            return f"用{new_content}"
-
-        result = self.TONGGUO_PATTERN.sub(replace_tongguo, result)
-        return result, changes
-
     def _replace_enum_words(self, text: str) -> Tuple[str, List[str]]:
         changes = []
         result = text
@@ -467,14 +239,6 @@ class ChineseHumanizer(BaseHumanizer):
             if count > 0:
                 result = new_result
                 changes.append(f"替换编号词: {pattern} -> {replacement}")
-        return result, changes
-
-    def _replace_em_dashes(self, text: str) -> Tuple[str, List[str]]:
-        changes = []
-        result = text
-        if '——' in result:
-            result = result.replace('——', '，即')
-            changes.append("替换破折号为'，即'")
         return result, changes
 
     def _clean_extra_punctuation(self, text: str) -> Tuple[str, List[str]]:
