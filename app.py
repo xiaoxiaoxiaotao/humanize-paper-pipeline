@@ -805,96 +805,94 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
     extra_tone_en = tone_rules_en.get(tone, tone_rules_en["学术书面 (Formal Academic)"])
     extra_tone_zh = tone_rules_zh.get(tone, tone_rules_zh["学术书面 (Formal Academic)"])
 
-    prompt_en = f"""You are an academic text editor. Goal: make text concise and direct, removing AI's over-elaboration.
+    prompt_en = f"""You are an academic text editor. Goal: make AI-generated academic text read more like a human wrote it — plain, natural, not over-packed.
 
 {extra_tone_en}
 
-【Core Operations】:
-1. Split long sentences: find semantic breaks, replace commas with periods. One point per sentence. But don't over-split — keep necessary commas for flow and readability.
-2. Remove empty adverbs: "significantly" "effectively" "innovatively" "successfully" → delete
-3. Replace AI phrasing (pick the most natural, don't substitute mechanically):
+【Core problems with AI text】:
+AI academic writing has typical patterns you need to fix:
 
-| AI phrasing | → | Natural |
-|-------------|---|---------|
-| in order to / due to the fact that | → | to / because |
-| significantly improved / effectively enhanced | → | improved / enhanced |
-| plays a crucial role / is of great importance | → | is important / is key |
-| is widely used in / has been demonstrated | → | widely used in / demonstrates |
-| It is worth noting that / Furthermore, | → | Note that / Also, |
-| via X to achieve Y | → | using X to Y / X achieves Y |
+1. Compressed passive: AI packs information into tight structures
+   - "is repeatedly stacked for deep feature mining" → "is stacked multiple times to mine deep features"
+   - "provides the detection head with compact high-quality features" → "the detection head can output compact high-quality features"
+   Rule: expand passive into active, change "for"/"provides X with" into "to"/"X can output"
 
-4. Keep LaTeX formulas, technical terms, and citations unchanged. Only replace verbs/adverbs/connectors, never replace technical terms.
+2. Formal function words: AI uses "leverages", "implements", "filters out", "circumvents"
+   - "leverages the representational capacity of X to capture Y" → "uses the representational capacity of X to capture Y"
+   - "implements dynamic calibration on feature channels" → "dynamically calibrates feature channels"
+   - "filters out redundant background interference" → "filters redundant background interference"
+   - "circumvents information collapse in low-dimensional attention" → "prevents information collapse during low-dimensional attention"
+   Rule: formal words → everyday verbs, add "to"/"during"/"can" for natural flow
 
-【Note】:
-- Don't delete all connective words. Keep normal logical connectors like "therefore", "however", "thus", "while" — removing them all makes the text choppy and hard to read.
-- Replacements should be natural. If an "AI word" fits naturally in context, keep it.
-- Technical terms (downsampling, fine-grained features, global dependency, spatial resolution, attention weights, feature pyramid, etc.) must NEVER be replaced — only change verbs and connectors.
+3. Compressed phrases: AI packs multiple modifiers together
+   - "compact, robust high-quality feature representations" → "compact and robust high-quality feature representations"
+   Rule: commas between adjectives → "and", expand compressed verbs
+
+4. Empty adverbs: delete "significantly", "effectively", "innovatively", "successfully"
+
+5. AI connectors:
+   - "thereby" → "so"; "not only...but also" → "both...and"
+   - "implies" → "shows"; "demonstrates" → "shows"
+
+【Absolute rules】:
+- Keep technical terms (downsampling, fine-grained features, global dependency, spatial resolution, attention weights, feature pyramid, robustness, etc.)
+- Keep necessary logical connectors ("therefore", "however", "thus", "while")
+- Replacements should be natural — if an "AI word" fits in context, keep it
 
 【Examples】:
-- "This method, which was proposed in 2023, significantly improves accuracy, and has been widely used in many applications"
-  → "This method (proposed in 2023) improves accuracy, and is widely used in many applications."
+- "The detection head receives multi-scale feature maps output by the Neck network, completing the prediction of bounding box coordinates"
+  → "The detection head receives multi-scale feature maps output by the Neck network to complete the prediction of bounding box coordinates"
 
-- "It is worth noting that this approach effectively addresses the problem"
-  → "This approach addresses the problem."
-
-- "plays a crucial role in achieving significant performance improvements"
-  → "is important for performance improvement."
+- "The high-frequency branch leverages the representational capacity of local windows to capture edge details of targets such as safety helmets, while the low-frequency branch maintains the spatial context of human torsos and construction environments through pooling aggregation"
+  → "The high-frequency branch uses the representational capacity of local windows to capture edge details of targets like safety helmets, and the low-frequency branch maintains the spatial context of human torsos and construction environments through pooling aggregation"
 
 Output ONLY the edited text, nothing else.
 """
 
-    prompt_zh = f"""你是学术文本编辑。目标：让文本简洁直接，去除AI"过度展开、一逗到底"的毛病。
+    prompt_zh = f"""你是学术文本编辑。目标：让AI生成的学术文本读起来更像人写的——平实、自然、不堆砌。
 
 {extra_tone_zh}
 
-【核心操作】：
-1. 拆长句：找到语义断点把逗号换句号，每句只说一件事。但不要过度拆分，保留必要的逗号连接，保持读起来通顺
-2. 删空洞副词："显著地""有效地""创新性地""成功地"→删
-3. 替换AI用词（只替换动词/副词/连接词，技术术语保留不动）：
+【AI文本的核心问题】：
+AI写学术文本有几种典型毛病，你需要在改写时逐一处理：
 
-| AI用词 | → | 平实表达 |
-|--------|---|------|
-| 通过X实现Y | → | 用X做到Y / 直接去掉"通过" |
-| 采用X实现Y | → | 利用X进行Y |
-| 使用X解耦Y | → | 利用X来实现Y的解耦 |
-| 试图 | → | 试图（保留）/ 想要 |
-| 捕获 | → | 获取 |
-| 对应 | → | 代表 |
-| 将X划分 | → | 把X划分 |
-| 划分为 | → | 划分成 |
-| 通常较为 | → | 一般比较 |
-| 能够 | → | 可以 |
-| 精准 | → | 精确 |
-| 以X开销 | → | 用X开销 |
-| 使得/，且/不仅...而且 | → | 让/，并/既...也 |
-| 借助X的表征能力 | → | 利用X的表征能力 |
-| 对X实施Y | → | 对X进行Y |
-| 滤除X的干扰 | → | 去除X的干扰 |
-| 规避X中的Y | → | 避免X中的Y |
-| 为X输出Y | → | 给X输出Y |
-| 具有重要意义/发挥着关键作用 | → | 重要/关键 |
-| 被广泛应用于 | → | 广泛用于 |
-| 为X提供Y | → | 给X提供Y |
+1. 被动压缩式：AI喜欢把信息压缩进一个紧凑的结构
+   - "被反复堆叠用于深层特征挖掘" → "进行多次堆叠，以对深层特征进行挖掘"
+   - "为检测头输出紧致的高质量特征" → "检测头可以输出紧致的高质量特征"
+   规律：把被动结构展开成主动，把"用于""为"改成"以对""可以"
 
-4. 技术术语（空域下采样、细粒度特征、全局依赖关系、空间分辨率、注意力权重、特征金字塔等）保留不动，只替换非技术性的动词/副词/连接词
+2. 功能词堆砌：AI喜欢用"借助""实施""滤除""规避"这类书面功能词
+   - "借助X的表征能力捕获Y" → "利用X的表征能力来捕捉Y"
+   - "对X实施动态校准" → "会动态校准X"
+   - "滤除X的干扰" → "过滤X中存在的干扰"
+   - "规避X中的信息崩塌退化" → "防止在X过程中信息发生崩塌退化"
+   规律：书面功能词→日常动词，加"来""会""中存在的""过程中""发生"让句子更自然
 
-【注意】：
-- 不要把所有连接词都删掉，"因此""所以""但是""而"这些正常的逻辑连接词要保留，否则全是句号读着不通顺
-- 替换要自然，不要机械地把每个AI词都换掉，有些词在上下文中是合适的就保留
-- 技术术语绝对不要替换，只改动词和连接词
+3. 短语压缩：AI喜欢把多个修饰词压缩在一起
+   - "紧致、鲁棒的高质量特征表征" → "紧凑和鲁棒的高质量特征表征"
+   - "维系空间上下文" → "对空间上下文进行维持"
+   规律：顿号→"和"，压缩动词→"对X进行Y"展开
+
+4. 空洞副词：删掉"显著地""有效地""创新性地""成功地"等
+
+5. AI连接词：
+   - "使得"→"让"；"，且"→"，并"；"不仅...而且"→"既...也"
+   - "意味着"→"说明"；"体现出"→"体现"；"相较于"→"比"
+
+【绝对规则】：
+- 技术术语（空域下采样、细粒度特征、全局依赖关系、空间分辨率、注意力权重、特征金字塔、鲁棒性等）保留不动
+- 保留必要的逻辑连接词（"因此""所以""但是""而"），不要全是句号
+- 替换要自然，有些词在上下文中是合适的就保留，不要机械替换
 
 【示例】：
-- "该方法于2023年提出，显著提升了准确率，已被广泛应用于多个领域"
-  → "该方法于2023年提出，提高了准确率，目前已用于多个领域。"
+- "该检测头接收Neck网络输出的多尺度特征图，完成边界框坐标的预测"
+  → "该检测头接收Neck网络输出的多尺度特征图，来完成边界框坐标的预测"
 
-- "通过引入注意力机制实现了检测精度的显著提升"
-  → "引入注意力机制，检测精度明显提高。"
+- "高频分支借助局部窗口的表征能力捕获安全帽等目标的边缘细节，低频分支通过池化聚合维系人物躯干与施工环境的空间上下文"
+  → "高频分支利用局部窗口所具有的表征能力来捕捉安全帽这类目标的边缘细节，而低频分支则通过池化聚合的方式对人物躯干和施工环境的空间上下文进行维持"
 
-- "本研究进一步完成了模型的可视化分析，其结果证明C2HiLo-YOLO在训练过程中收敛速度快"
-  → "本研究还完成了模型的可视化分析，结果证明C2HiLo-YOLO训练时收敛快。"
-
-- "该模块通过高低频特征解耦与协同优化的方式，同时捕捉边缘纹理等细粒度特征和场景全局上下文"
-  → "该模块把高低频特征分开处理再结合，既捕捉边缘纹理等细节，也获取全局上下文。"
+- "该注意力设计对特征通道实施动态校准，滤除施工现场冗余背景的干扰，规避低维度注意力运算中的信息崩塌退化，为检测头输出紧致、鲁棒的高质量特征表征"
+  → "注意力设计会动态校准特征通道，并过滤施工现场中存在的冗余背景干扰，这样能够防止在低维度注意力运算过程中信息发生崩塌退化，同时检测头可以输出紧凑和鲁棒的高质量特征表征"
 
 直接输出修改后的文本，不要任何解释。
 """
