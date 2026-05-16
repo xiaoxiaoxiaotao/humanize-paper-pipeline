@@ -675,13 +675,13 @@ def generate_simple_feedback(ai_score: int, ai_details: dict, thresholds: dict, 
         for idx, m in enumerate(top_issues, 1):
             short_feedback = feedback_lib.get(m['key'], f"{m['description']} (score: {m['score']})")
             parts.append(f"{idx}. {short_feedback}")
-        parts.append("Remember: minimal edits only. Keep 95%+ of the text unchanged.")
+        parts.append("Remember: minimal edits only. Keep 80%+ of the text unchanged.")
     else:
         parts = [f"当前AI总分: {ai_score}/100（目标 < 35）。主要问题："]
         for idx, m in enumerate(top_issues, 1):
             short_feedback = feedback_lib.get(m['key'], f"{m['description']}（得分: {m['score']}）")
             parts.append(f"{idx}. {short_feedback}")
-        parts.append("记住：只做最小幅度修改，保持95%以上原文不变。")
+        parts.append("记住：只做最小幅度修改，保持80%以上原文不变。")
 
     return "\n".join(parts)
 
