@@ -382,6 +382,7 @@ class ChineseDetector(BaseDetector):
         score, details = self._analyze_ai_formal_connectives(text, score, details)
         score, details = self._analyze_ai_abstract_suffix(text, score, details)
         score, details = self._analyze_ai_causal_chain(text, score, details)
+        score, details = self._analyze_mechanical_flow(text, score, details)
 
         if len(sentences) >= 2:
             score, details = self._analyze_sentence_length_distribution(sentences, score, details)
@@ -1586,6 +1587,7 @@ class ChineseDetector(BaseDetector):
             r'为[\u4e00-\u9fa5]{1,15}[所的]',
             r'予以[\u4e00-\u9fa5]{1,10}',
             r'得以[\u4e00-\u9fa5]{1,10}',
+            r'被[\u4e00-\u9fa5]{1,15}(接收|处理|输入|送入|采用|应用|执行|完成|整合|融合)',
         ]
 
         passive_count = 0
@@ -1811,6 +1813,11 @@ class ChineseDetector(BaseDetector):
             (r'从[\u4e00-\u9fa5]{2,10}(来看|角度)', '从X来看'),
             (r'体现出[\u4e00-\u9fa5]{1,10}', '体现出X'),
             (r'相比[\u4e00-\u9fa5]{2,10}', '相比X'),
+            (r'在[\u4e00-\u9fa5]{2,8}(上|下|中|方面)[，,]', '在X上'),
+            (r'分别对应[\u4e00-\u9fa5]{2,15}', '分别对应'),
+            (r'最终[\u4e00-\u9fa5]{2,10}(形成|整合|生成|构成|得到)', '最终形成'),
+            (r'该[\u4e00-\u9fa5]{2,8}(接收|完成|采用|实现|输出|处理)', '该X接收/完成'),
+            (r'在[\u4e00-\u9fa5]{2,8}前提下', '在X前提下'),
         ]
 
         total_count = 0
@@ -1885,8 +1892,9 @@ class ChineseDetector(BaseDetector):
     def _analyze_ai_causal_chain(self, text: str, score: int,
                                   details: Dict) -> Tuple[int, Dict]:
         patterns = [
-            (r'通过[^，。]{2,20}(实现|完成|达到|提升|增强|优化|解决|获取|提取|构建|训练|学习|融合|整合)', '通过X实现Y'),
+            (r'通过[^，。]{2,20}(实现|完成|达到|提升|增强|优化|解决|获取|提取|构建|训练|学习|融合|整合|输出|预测|生成|形成|处理|计算|检测)', '通过X实现Y'),
             (r'[^，。]{2,6}与[^，。]{2,6}的[^，。]{2,8}', 'X与Y的Z'),
+            (r'将[^，。]{2,20}(拆分|分离|划分|解耦|组合|整合|融合)', '将X拆分/整合'),
         ]
 
         total_count = 0
@@ -1911,6 +1919,46 @@ class ChineseDetector(BaseDetector):
             'count': total_count,
             'score': metric_score,
             'details': f'AI因果链句式 {total_count} 处 [{", ".join(found[:5])}]'
+        }
+
+        return score + metric_score, details
+
+    def _analyze_mechanical_flow(self, text: str, score: int,
+                                  details: Dict) -> Tuple[int, Dict]:
+        patterns = [
+            (r'[\u4e00-\u9fa5]{2,10}接收[\u4e00-\u9fa5]{2,15}[，,]完成[\u4e00-\u9fa5]{2,15}', 'X接收Y，完成Z'),
+            (r'[\u4e00-\u9fa5]{2,10}采用[\u4e00-\u9fa5]{2,15}设计', 'X采用Y设计'),
+            (r'将[\u4e00-\u9fa5]{2,20}与[\u4e00-\u9fa5]{2,20}(拆分|分离|划分|解耦)', '将X与Y拆分'),
+            (r'避免了[\u4e00-\u9fa5]{2,15}(之间|间)的[\u4e00-\u9fa5]{2,10}', '避免了X之间的Y'),
+            (r'[\u4e00-\u9fa5]{2,10}构成[\u4e00-\u9fa5]{2,15}', 'X构成Y'),
+            (r'各[\u4e00-\u9fa5]{2,8}(分支|模块|层|部分|阶段)[\u4e00-\u9fa5]{0,6}(输出|产生|生成|得到)', '各X分支输出Y'),
+            (r'[\u4e00-\u9fa5]{2,15}的结果最终[\u4e00-\u9fa5]{2,10}(形成|整合|构成|生成)', 'X结果最终形成Y'),
+        ]
+
+        total_count = 0
+        found = []
+        for pattern, name in patterns:
+            matches = re.findall(pattern, text)
+            if matches:
+                total_count += len(matches)
+                found.append(f'{name}({len(matches)})')
+
+        metric_score = 0
+        if total_count >= 5:
+            metric_score = 10
+        elif total_count >= 4:
+            metric_score = 7
+        elif total_count >= 3:
+            metric_score = 5
+        elif total_count >= 2:
+            metric_score = 3
+        elif total_count >= 1:
+            metric_score = 1
+
+        details['metrics']['mechanical_flow'] = {
+            'count': total_count,
+            'score': metric_score,
+            'details': f'机械流程描述 {total_count} 处 [{", ".join(found[:5])}]'
         }
 
         return score + metric_score, details

@@ -142,6 +142,7 @@ CHINESE_METRIC_THRESHOLDS = {
     'ai_formal_connectives': {'max_score': 6, 'max_count': 2, 'description': 'AI正式连接词'},
     'ai_abstract_suffix': {'max_score': 8, 'max_count': 4, 'description': 'AI抽象后缀'},
     'ai_causal_chain': {'max_score': 5, 'max_count': 2, 'description': 'AI因果链句式'},
+    'mechanical_flow': {'max_score': 5, 'max_count': 2, 'description': '机械流程描述'},
 }
 
 ENGLISH_METRIC_THRESHOLDS = {
@@ -557,6 +558,17 @@ CHINESE_METRIC_FEEDBACK = {
         "'通过X实现Y'→'用X做到Y'或拆成两句：'利用X。这样做到Y。'；"
         "'通过X提升Y'→'用X提高Y'；'通过X优化Y'→'用X改进Y'；"
         "'X与Y的Z'→'X和Y的Z'或拆成'X的Z和Y的Z'。"
+    ),
+    'mechanical_flow': (
+        "【机械流程描述过多】检测到大量AI典型的机械式流程描述"
+        "（如'X接收Y，完成Z'、'X采用Y设计'、'将X与Y拆分'、'避免了X之间的Y'、'X构成Y'等）。\n"
+        "修复方案：用更自然的描述替代机械流程。"
+        "'X接收Y，完成Z'→'X拿到Y后预测Z'或拆成两句；"
+        "'X采用Y设计'→'X用了Y'或'X的设计是Y'；"
+        "'将X与Y拆分处理'→'把X和Y分开处理'；"
+        "'避免了X之间的Y'→'减少了X间的Y'或'不再有X间的Y'；"
+        "'X构成Y'→'X组成Y'或'X就是Y'；"
+        "'X结果最终整合形成Y'→'X结果合在一起就是Y'。"
     ),
 }
 
