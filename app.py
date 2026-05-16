@@ -397,7 +397,7 @@ CHINESE_METRIC_FEEDBACK = {
     'transition_overuse': (
         "【过渡词过度使用】检测到过多机械逻辑连接词"
         "（如'首先、其次、最后、综上所述'等）。\n"
-        "修复方案：删除大部分显式过渡词。用段落间的自然逻辑推进代替编号式结构。"
+        "修复方案：减少机械的编号式过渡词（首先/其次/最后），但保留正常的逻辑连接词（因此/所以/但是/而）。用自然的逻辑推进代替编号式结构。"
         "如果需要强调逻辑关系，使用更自然的表达方式。"
     ),
     'abstract_language': (
@@ -569,7 +569,7 @@ ENGLISH_METRIC_FEEDBACK = {
     'transition_overuse': (
         "[Transition Overuse]: Too many mechanical transition words detected "
         "(e.g., 'moreover', 'furthermore', 'additionally', 'in conclusion'). "
-        "Fix: Remove most explicit transitions. Use implicit logical flow instead. "
+        "Fix: Reduce mechanical numbered transitions (firstly/secondly/lastly), but keep normal logical connectors (therefore/however/thus/while). Use natural logical flow instead."
         "Keep only those that are absolutely necessary for clarity."
     ),
     'abstract_language': (
@@ -790,7 +790,7 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 {extra_tone_en}
 
 【Core Operations】:
-1. Split long sentences: find semantic breaks, replace commas with periods. One point per sentence.
+1. Split long sentences: find semantic breaks, replace commas with periods. One point per sentence. But don't over-split — keep necessary commas for flow and readability.
 2. Remove empty adverbs: "significantly" "effectively" "innovatively" "successfully" → delete
 3. Replace AI phrasing (pick the most natural, don't substitute mechanically):
 
@@ -800,14 +800,18 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 | significantly improved / effectively enhanced | → | improved / enhanced |
 | plays a crucial role / is of great importance | → | is important / is key |
 | is widely used in / has been demonstrated | → | widely used in / demonstrates |
-| It is worth noting that / Furthermore, | → | (delete) / Also, |
+| It is worth noting that / Furthermore, | → | Note that / Also, |
 | via X to achieve Y | → | using X to Y / X achieves Y |
 
 4. Keep LaTeX formulas, technical terms, and citations unchanged.
 
+【Note】:
+- Don't delete all connective words. Keep normal logical connectors like "therefore", "however", "thus", "while" — removing them all makes the text choppy and hard to read.
+- Replacements should be natural. If an "AI word" fits naturally in context, keep it.
+
 【Examples】:
 - "This method, which was proposed in 2023, significantly improves accuracy, and has been widely used in many applications"
-  → "This method (proposed in 2023) improves accuracy. It is widely used in many applications."
+  → "This method (proposed in 2023) improves accuracy, and is widely used in many applications."
 
 - "It is worth noting that this approach effectively addresses the problem"
   → "This approach addresses the problem."
@@ -823,7 +827,7 @@ Output ONLY the edited text, nothing else.
 {extra_tone_zh}
 
 【核心操作】：
-1. 拆长句：找到语义断点把逗号换句号，每句只说一件事
+1. 拆长句：找到语义断点把逗号换句号，每句只说一件事。但不要过度拆分，保留必要的逗号连接，保持读起来通顺
 2. 删空洞副词："显著地""有效地""创新性地""成功地"→删
 3. 替换AI用词（选最自然的，不要机械替换）：
 
@@ -844,18 +848,22 @@ Output ONLY the edited text, nothing else.
 
 4. 保持LaTeX公式、专业术语、引用不变
 
+【注意】：
+- 不要把所有连接词都删掉，"因此""所以""但是""而"这些正常的逻辑连接词要保留，否则全是句号读着不通顺
+- 替换要自然，不要机械地把每个AI词都换掉，有些词在上下文中是合适的就保留
+
 【示例】：
 - "该方法于2023年提出，显著提升了准确率，已被广泛应用于多个领域"
-  → "该方法于2023年提出，提高了准确率。目前已用于多个领域。"
+  → "该方法于2023年提出，提高了准确率，目前已用于多个领域。"
 
 - "通过引入注意力机制实现了检测精度的显著提升"
   → "引入注意力机制，检测精度明显提高。"
 
 - "本研究进一步完成了模型的可视化分析，其结果证明C2HiLo-YOLO在训练过程中收敛速度快"
-  → "本研究还做了模型的可视化分析。结果证明C2HiLo-YOLO训练时收敛快。"
+  → "本研究还做了模型的可视化分析，结果证明C2HiLo-YOLO训练时收敛快。"
 
 - "该模块通过高低频特征解耦与协同优化的方式，同时捕捉边缘纹理等细粒度特征和场景全局上下文"
-  → "该模块把高低频特征分开处理再结合。既捕捉边缘纹理等细节，也获取全局上下文。"
+  → "该模块把高低频特征分开处理再结合，既捕捉边缘纹理等细节，也获取全局上下文。"
 
 直接输出修改后的文本，不要任何解释。
 """
