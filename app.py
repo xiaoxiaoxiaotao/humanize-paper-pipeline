@@ -818,11 +818,12 @@ def process_pipeline(text, lang, target_format, tone, api_base, api_key, model_i
 | It is worth noting that / Furthermore, | → | Note that / Also, |
 | via X to achieve Y | → | using X to Y / X achieves Y |
 
-4. Keep LaTeX formulas, technical terms, and citations unchanged.
+4. Keep LaTeX formulas, technical terms, and citations unchanged. Only replace verbs/adverbs/connectors, never replace technical terms.
 
 【Note】:
 - Don't delete all connective words. Keep normal logical connectors like "therefore", "however", "thus", "while" — removing them all makes the text choppy and hard to read.
 - Replacements should be natural. If an "AI word" fits naturally in context, keep it.
+- Technical terms (downsampling, fine-grained features, global dependency, spatial resolution, attention weights, feature pyramid, etc.) must NEVER be replaced — only change verbs and connectors.
 
 【Examples】:
 - "This method, which was proposed in 2023, significantly improves accuracy, and has been widely used in many applications"
@@ -844,28 +845,33 @@ Output ONLY the edited text, nothing else.
 【核心操作】：
 1. 拆长句：找到语义断点把逗号换句号，每句只说一件事。但不要过度拆分，保留必要的逗号连接，保持读起来通顺
 2. 删空洞副词："显著地""有效地""创新性地""成功地"→删
-3. 替换AI用词（选最自然的，不要机械替换）：
+3. 替换AI用词（只替换动词/副词/连接词，技术术语保留不动）：
 
 | AI用词 | → | 人话 |
 |--------|---|------|
 | 通过X实现Y | → | 用X做到Y / 直接去掉"通过" |
-| 融合/优化/采用 | → | 组合/调整/用 |
-| 提升/增强/构建 | → | 提高/加强/搭建 |
-| 提升了/实现了/解决了 | → | 提高了/做到了/处理了 |
-| 证明了/展示了/验证了 | → | 说明/显示/确认 |
-| 提升至/提升幅度 | → | 提高到/提高幅度 |
-| 鲁棒性/范式/机制 | → | 稳定性/模式/方法 |
-| 意味着/体现出/相较于 | → | 说明/体现/比 |
+| 采用X实现Y | → | 利用X进行Y |
+| 使用X解耦Y | → | 利用X来实现Y的解耦 |
+| 试图 | → | 使用 / 想 |
+| 捕获 | → | 获取 |
+| 对应 | → | 代表 |
+| 将X划分 | → | 会把X划分 |
+| 划分为 | → | 划分成 |
+| 通常较为 | → | 一般比较 |
+| 能够 | → | 可以 |
+| 精准 | → | 精确 |
+| 以X开销 | → | 用X开销 |
 | 使得/，且/不仅...而且 | → | 让/，并/既...也 |
 | 具有重要意义/发挥着关键作用 | → | 重要/关键 |
 | 被广泛应用于 | → | 广泛用于 |
 | 为X提供Y | → | 给X提供Y |
 
-4. 保持LaTeX公式、专业术语、引用不变
+4. 技术术语（空域下采样、细粒度特征、全局依赖关系、空间分辨率、注意力权重、特征金字塔等）保留不动，只替换非技术性的动词/副词/连接词
 
 【注意】：
 - 不要把所有连接词都删掉，"因此""所以""但是""而"这些正常的逻辑连接词要保留，否则全是句号读着不通顺
 - 替换要自然，不要机械地把每个AI词都换掉，有些词在上下文中是合适的就保留
+- 技术术语绝对不要替换，只改动词和连接词
 
 【示例】：
 - "该方法于2023年提出，显著提升了准确率，已被广泛应用于多个领域"
