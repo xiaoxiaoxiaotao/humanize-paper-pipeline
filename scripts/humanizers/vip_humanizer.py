@@ -279,11 +279,55 @@ class VIPHumanizer(BaseHumanizer):
         '实际应用需求': '实际需求',
         '应用需求': '需求',
         '具体场景': '场景',
+
+        # 报告实测高频AIGC词组（基于维普标记样本补充）
+        '有机融合': '结合',
+        '深度融合': '融合',
+        '切实有效地': '',
+        '逐步暴露出了': '暴露出',
+        '逐步暴露出': '暴露出',
+        '加速转型': '转型',
+        '向数字化方向': '数字化',
+        '进一步提升': '提高',
+        '进一步增强': '增强',
+        '进一步改善': '改善',
+        '进一步强化': '强化',
+        '得以实现': '实现了',
+        '从而使得': '让',
+        '得到了进一步提升': '得到提升',
+        '获得了进一步提升': '得到提升',
+        '既具备': '有',
+        '又兼具': '也有',
+        '高度个性化': '个性化',
+        '严密空间逻辑': '空间逻辑',
+        '依托': '利用',
+        '进行了明确的定义': '明确定义了',
+        '明确的定义': '明确定义',
+        '顺序化执行': '顺序执行',
+        '长链任务自动拆解': '任务拆解',
+        '实验分析的结果表明': '实验结果表明',
+        '均获得了显著的提升': '都有明显提升',
+        '工程实践经验': '经验',
+        '完整的落地路线图': '参考方案',
+        '具有参考价值的实践模式': '参考',
+        '本研究所积累的': '本文的',
+        '硬性逻辑约束条件下': '硬约束场景下',
+        '任务成功率': '成功率',
+        '路径合理性': '路径质量',
+        '着手设计并实现了': '设计了',
+        '针对这一突出问题': '对此',
+        '在本质上成为': '本质是',
+        '所暴露出的': '的',
+        '明显的局限性': '局限性',
     }
 
     SUIZHE_PATTERN = re.compile(r'随着([^，。的了]+?的[^，。]*)[，,]')
     JIYU_PATTERN = re.compile(r'基于([^，。的了]+?的[^，。]*)')
     TONGGUO_PATTERN = re.compile(r'通过([^，。的了]+?的[^，。]*)')
+    # "在X层面，" → 直接去除层面引导语
+    ZAIXXMIAN_PATTERN = re.compile(r'在([^，。]{2,8})层面[，,]')
+    # "不仅…而且还…" → "…，…"
+    BUJIN_PATTERN = re.compile(r'不仅([^，。]{3,40})，而且还([^，。]{3,40})')
 
     def __init__(self):
         super().__init__(name="VIP Humanizer")
@@ -302,6 +346,12 @@ class VIPHumanizer(BaseHumanizer):
         changes.extend(new_changes)
 
         result, new_changes = self._fix_tongguo_pattern(result)
+        changes.extend(new_changes)
+
+        result, new_changes = self._fix_zaixxmian_pattern(result)
+        changes.extend(new_changes)
+
+        result, new_changes = self._fix_bujin_pattern(result)
         changes.extend(new_changes)
 
         result, new_changes = self._reduce_data_precision(result)
@@ -363,6 +413,33 @@ class VIPHumanizer(BaseHumanizer):
             return f"利用{new_content}"
 
         result = self.TONGGUO_PATTERN.sub(replace_tongguo, result)
+        return result, changes
+
+    def _fix_zaixxmian_pattern(self, text: str) -> Tuple[str, List[str]]:
+        """消除'在X层面，'引导句，改为直接陈述"""
+        changes = []
+        result = text
+
+        def replace_zai(m):
+            content = m.group(1)
+            changes.append(f"简化'在{content}层面' -> 直接陈述")
+            return ''
+
+        result = self.ZAIXXMIAN_PATTERN.sub(replace_zai, result)
+        return result, changes
+
+    def _fix_bujin_pattern(self, text: str) -> Tuple[str, List[str]]:
+        """'不仅A，而且还B' → 'A，也B'"""
+        changes = []
+        result = text
+
+        def replace_bujin(m):
+            a = m.group(1)
+            b = m.group(2)
+            changes.append(f"简化'不仅…而且还': {m.group(0)[:20]}...")
+            return f"{a}，也{b}"
+
+        result = self.BUJIN_PATTERN.sub(replace_bujin, result)
         return result, changes
 
     def _reduce_data_precision(self, text: str) -> Tuple[str, List[str]]:
